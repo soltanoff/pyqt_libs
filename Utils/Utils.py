@@ -19,7 +19,6 @@ def memorize(func):
     return wrapper
 
 
-
 def timer(func):
     @wraps(func)
     def wrapper(*args, **kwargs):
@@ -34,6 +33,7 @@ def timer(func):
 
 if __name__ == '__main__':
     import time
+
 
     @timer
     @memorize
