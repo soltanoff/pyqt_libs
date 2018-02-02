@@ -26,8 +26,8 @@ def nameCase(s):
 
 
 def formatDate(val, toString=True):
-    """
-        Производит конвертацию даты из QDate в строку (при toString = True) или строку в QDate
+    u"""
+    Производит конвертацию даты из QDate в строку (при toString = True) или строку в QDate
 
     :param val: дата.
     :type val: QDate | QVariant | QString

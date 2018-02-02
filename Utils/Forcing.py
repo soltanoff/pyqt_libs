@@ -73,15 +73,14 @@ def forceDateTuple(val):
     u"""
     Раньше использовалось, потому что так понимал SOAP. Предполагается, что новый формат SOAP
     тоже будет нормально понимать. Собственно, теперь возвращает не tuple и надо будет починить попозже имя
+
     :type val: PyQt4.QtCore.QVariant
     :rtype: str
     """
     dt = forceDateTime(val)
     if dt == QDateTime():
         return None
-    # d = dt.date()
-    # t = dt.time()
-    # return d.year(), d.month(), d.day(), t.hour(), t.minute(), t.second(), 0
+
     result = str(dt.toString('yyyy-MM-ddThh:mm:ss'))
     return result if result else None
 
