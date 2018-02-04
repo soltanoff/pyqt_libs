@@ -4,6 +4,8 @@ from functools import wraps
 UTILS_FUNCTION_RESULT_CACHE = dict()
 
 
+# TODO: soltanoff: сделать проверку на использование в classmethod, поскольку ключ кеша формуриется странный.
+# TODO: soltanoff: исключить из аргументов `self`
 def memorize(func):
     @wraps(func)
     def wrapper(*args, **kwargs):
@@ -19,14 +21,18 @@ def memorize(func):
     return wrapper
 
 
+def clearMemorizeCache():
+    UTILS_FUNCTION_RESULT_CACHE.clear()
+
+
 def timer(func):
     @wraps(func)
     def wrapper(*args, **kwargs):
         startTime = time.time()
-        rv = func(*args, **kwargs)
+        result = func(*args, **kwargs)
         endTime = time.time() - startTime
         print('\nExec time: %s sec. ' % endTime)
-        return rv
+        return result
 
     return wrapper
 
