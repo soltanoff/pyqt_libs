@@ -1,5 +1,4 @@
 # -*- coding: utf-8 -*-
-
 from PyQt4.QtCore import *
 
 from Utils.Forcing import forceString, forceStringEx, forceInt
@@ -9,20 +8,21 @@ def trim(s):
     return forceString(s).strip()
 
 
-def nameCase(s):
-    r = u''
+# TODO: soltanoff: странный метод... Нужно сделать проще, зачем так сложно?
+def nameCase(text):
+    result = u''
     up = True
-    for c in s:
-        if c.isalpha():
+    for symbol in text:
+        if symbol.isalpha():
             if up:
-                r += c.upper()
+                result += symbol.upper()
                 up = False
             else:
-                r += c.lower()
+                result += symbol.lower()
         else:
             up = True
-            r += c
-    return r
+            result += symbol
+    return result
 
 
 def formatDate(val, toString=True):
