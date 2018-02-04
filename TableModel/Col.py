@@ -6,8 +6,8 @@ from Utils.Forcing import forceStringEx, toVariant, forceRef, forceString
 
 
 class CCol(object):
-    """
-      Root of all columns
+    u"""
+    Основа для все колонок таблиц QTableView и не только.
     """
     alg = {
         'l': QVariant(Qt.AlignLeft + Qt.AlignVCenter),
@@ -65,6 +65,13 @@ class CCol(object):
         return toVariant(self.getFromCache(id))
 
     def load(self, id):
+        u"""
+        Основной переопределяемый метод.
+        Метод осуществляет подгрузку с БД информации и кладет ее в кеш.
+        
+        :param id: идентификатор записи в БД.
+        :return:
+        """
         self.putIntoCache(id, id)
 
     def clearCache(self):
