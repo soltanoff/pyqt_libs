@@ -7,6 +7,9 @@ from PyQt4.QtCore import QVariant, QDate, QDateTime, QTime, QStringRef, QString
 from Utils.Formating import formatDate, formatDateTime, formatTime
 
 
+# TODO: soltanoff: let's go write a docstrings ! :3
+
+
 def toVariant(v):
     if v is None:
         return QVariant()
