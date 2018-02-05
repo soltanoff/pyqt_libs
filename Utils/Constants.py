@@ -1,6 +1,8 @@
 # -*- coding: utf-8 -*-
 from PyQt4 import QtCore
 
+DB_DEBUG = True
+
 # DATE
 CURRENT_DATE = QtCore.QDate.currentDate(QtCore.QDate())
 CURRENT_DATETIME = QtCore.QDateTime.currentDateTime(QtCore.QDateTime())
