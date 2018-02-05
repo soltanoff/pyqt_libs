@@ -9,6 +9,7 @@ def trim(s):
 
 
 
+
 # TODO: soltanoff: странный метод... Нужно сделать проще, зачем так сложно?
 def nameCase(text):
     result = u''
