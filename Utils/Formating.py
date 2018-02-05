@@ -8,8 +8,6 @@ def trim(s):
     return forceString(s).strip()
 
 
-
-
 # TODO: soltanoff: странный метод... Нужно сделать проще, зачем так сложно?
 def nameCase(text):
     result = u''
