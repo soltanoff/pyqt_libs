@@ -6,9 +6,7 @@ from Utils.Forcing import forceStringEx, toVariant, forceRef, forceString
 
 
 class CCol(object):
-    u"""
-    Основа для все колонок таблиц QTableView и не только.
-    """
+    u"""Основа для все колонок таблиц QTableView и не только."""
     alg = {
         'l': QVariant(Qt.AlignLeft + Qt.AlignVCenter),
         'c': QVariant(Qt.AlignHCenter + Qt.AlignVCenter),
