@@ -5,6 +5,7 @@ from PyQt4 import QtCore
 
 IDLE_THREADS = []
 
+# TODO: soltanoff: docstrings
 
 class CThread(QtCore.QThread):
     global IDLE_THREADS
