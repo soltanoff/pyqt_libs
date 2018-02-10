@@ -6,6 +6,7 @@ from PyQt4.QtCore import QVariant
 
 from DB.Field import CField
 
+# TODO: soltanoff: docstrings
 
 def undotLikeMask(val):
     if isinstance(val, CSqlExpression): return val
