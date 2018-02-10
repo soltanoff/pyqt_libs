@@ -1,6 +1,6 @@
 # PyQt lib
 
-This directory is intended for the project specific (private) libraries.
+This directory is intended for the project specific libraries or specific tools.
 
 The source code of each library should be placed in separate directory, like
 "lib/private_lib/[here are source files]".
