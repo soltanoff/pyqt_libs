@@ -8,6 +8,7 @@ from DB.Tools import CSqlExpression
 from Utils.Exceptions import CDatabaseException
 
 
+# FIXME: soltanoff: need to drop useless attrib & methods
 class CTable(object):
     def __init__(self, tableName, database, alias=''):
         self.fields = []
