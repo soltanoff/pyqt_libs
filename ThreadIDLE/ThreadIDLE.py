@@ -3,6 +3,7 @@ import collections
 
 from PyQt4 import QtCore
 
+# list of all threads created by the `CThread`class
 IDLE_THREADS = []
 
 # TODO: soltanoff: docstrings
