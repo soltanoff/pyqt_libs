@@ -14,6 +14,7 @@ def totalSeconds(td):
     return (td.microseconds + .0 + (td.seconds + td.days * 24 * 3600) * 10**6) / 10**6
 
 
+# decorator for `exec_` or `query` methods
 def printQueryTime(callStack=False, printQueryFirst=False):
     def decorator(query):
         def wrapper(self, stmt):
