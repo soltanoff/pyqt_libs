@@ -15,6 +15,11 @@ def undotLikeMask(val):
     return val.replace('...', '%').replace('%%', '%')
 
 
+def decorateString(s):
+    u = unicode(s)
+    return '\'' + u.replace('\\', '\\\\').replace('\'', '\\\'') + '\''
+
+
 class CSurrogateField(CField):
     def __init__(self, name, fieldType):
         super(CField, self).__init__()
