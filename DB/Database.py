@@ -8,6 +8,29 @@ from DB.Tools import decorateString
 class CDatabase(QObject):
     aliasSymbol = 'AS'
 
+    errUndefinedDriver = u'Драйвер базы данных "%s" не зарегистрирован'
+    errCannotConnectToDatabase = u'Невозможно подключиться к базе данных "%s"'
+    errCannotOpenDatabase = u'Невозможно открыть базу данных "%s"'
+    errDatabaseIsNotOpen = u'База данных не открыта'
+
+    errCommitError = u'Ошибка закрытия тразнакции'
+    errRollbackError = u'Ошибка отмены тразнакции'
+    errTableNotFound = u'Таблица "%s" не найдена'
+    errFieldNotFound = u'В таблице %s не найдено поле "%s"'
+    errQueryError = u'Ошибка выполнения запроса\n%s'
+    errNoIdField = u'В таблице %s не определен первичный ключ'
+    errConnectionLost = u'Потеряна связь с сервером.'
+    errRestoreConnectionFailed = u'Не удалось восстановить подключение к базе данных.'
+
+    errTransactionError = u'Ошибка открытия тразнакции'
+    errNestedCommitTransactionError = u'Ошибка подтверждения вложенной транзакции'
+    errNestedRollbackTransactionError = u'Ошибка отмены вложенной транзакции'
+    errNestedTransactionCall = u'Попытка открытия вложенной транзакции'
+    errUnexpectedTransactionCompletion = u'Неожиданное завершение транзакции'
+    errInheritanceTransaction = u'Ошибка нессответствия наследования транзакций и вызвавших их функций'
+    errNoRootTransaction = u'Нарушение требования корневой транзакции (уже открыто %s транзакций)'
+    errPreviousTransactionCallStack = u'>>>>>> Стек вызовов предыдущей транзакции:\n%s <<<<<<'
+
     returnedDeadlockErrorText = u'<To be specified for a particular database.>'
 
     # добавлено для formatQVariant
