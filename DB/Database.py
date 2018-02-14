@@ -1,8 +1,9 @@
 # -*- coding: utf-8 -*-
-from PyQt4 import QtGui
+from PyQt4 import QtGui, QtSql
 from PyQt4.QtCore import QObject, QVariant, pyqtSignal, Qt
 
-from DB.Tools import decorateString
+from DB.Field import CField
+from DB.Tools import decorateString, CSqlExpression, CSubQueryTable
 
 
 class CDatabase(QObject):
@@ -69,3 +70,45 @@ class CDatabase(QObject):
 
         self._func = None
         self._proc = None
+
+    def getConnectionId(self):
+        return None
+
+    def makeField(self, fromString):
+        u""" Raw SQL -> CField-like object
+        :rtype: CSqlExpression
+        """
+        return CSqlExpression(self, fromString)
+
+    def valueField(self, value):
+        u""" Py-value (QVariant-convertible) -> CField-like object """
+        return self.makeField(self.formatArg(value))
+
+    def forceField(self, value):
+        u""" CField instance, raw SQL or Py-value -> CField instance
+        :rtype: CField
+        """
+        if isinstance(value, CField):
+            return value
+        elif isinstance(value, (str, unicode)):
+            return self.makeField(value)
+        return self.valueField(value)
+
+    def subQueryTable(self, stmt, alias):
+        u""" SELECT stmt -> CTable-like object """
+        return CSubQueryTable(self, stmt, alias)
+
+    def escapeIdentifier(self, name, identifierType):
+        return unicode(self.driver().escapeIdentifier(name, identifierType))
+
+    def escapeFieldName(self, name):
+        return unicode(self.driver().escapeIdentifier(name, QtSql.QSqlDriver.FieldName))
+
+    def escapeTableName(self, name):
+        return unicode(self.driver().escapeIdentifier(name, QtSql.QSqlDriver.TableName))
+
+    escapeSchemaName = escapeTableName
+
+    @staticmethod
+    def dummyRecord():
+        return QtSql.QSqlRecord()
