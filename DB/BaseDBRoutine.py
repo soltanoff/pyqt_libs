@@ -2,11 +2,14 @@
 from DB.Tools import CSqlExpression
 from Utils.Exceptions import CDatabaseException
 
+u"""
+Абстрактные классы необходимые для работы с процедурами и функциями СУБД.
+T-SQL
+"""
+
 
 class CDatabaseRoutine(object):
-    u"""
-     cond = [.., db.func.age(tableClient['birthDate'], tableEvent['setDate']) >= 18
-    """
+    u"""cond = [.., db.func.age(tableClient['birthDate'], tableEvent['setDate']) >= 18"""
 
     FUNCTION = 1
     PROCEDURE = 2
@@ -32,10 +35,9 @@ class CDatabaseRoutineMap(object):
         self._routineMap = None
 
     def __getattr__(self, item):
-        if item in self._routineMap:
-            return self._routineMap[item]
-        if item in self.__dict__:
-            return self.__dict__[item]
+        if item in self._routineMap: return self._routineMap[item]
+        if item in self.__dict__: return self.__dict__[item]
+
         raise CDatabaseException('Routine \'{0}.{1}\' doesn`t exists'.format(self._db.db.databaseName(), item))
 
     def _load(self):
