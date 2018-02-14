@@ -112,3 +112,40 @@ class CDatabase(QObject):
     @staticmethod
     def dummyRecord():
         return QtSql.QSqlRecord()
+
+    u"""
+    Добавлено из-за обнаруженной ошибки в qt4 v.4.5.3:
+    - значения полей типа DOUBLE считываются не как QVariant.Double а как QVariant.String
+      поведение в windows не исследовано, а в linux строка записывается с десятичной запятой.
+      при этом документированный способ исправить положение
+      query.setNumericalPrecisionPolicy(QSql.LowPrecisionDouble)
+      не срабатывает из-за того, что driver.hasFeature(QSqlDriver.LowPrecisionNumbers)
+      возвращает false
+    - при записи значения в запрос формируется значение с запятой, что неприемлемо для MySql сервера
+    поэтому принято решение написать свой вариант formatValue
+    """
+
+    @classmethod
+    def formatQVariant(cls, fieldType, val):
+        if val.isNull():
+            return 'NULL'
+        return cls.convMethod[fieldType](val)
+
+    @classmethod
+    def formatValue(cls, field):
+        return cls.formatQVariant(field.type(), field.value())
+
+    @classmethod
+    def formatValueEx(cls, fieldType, value):
+        if isinstance(value, QVariant):
+            return cls.formatQVariant(fieldType, value)
+        else:
+            return cls.formatQVariant(fieldType, toVariant(value))
+
+    @classmethod
+    def formatArg(cls, value):
+        if isinstance(value, CField):
+            return value.name()
+        else:
+            qValue = toVariant(value)
+            return cls.formatValueEx(qValue.type(), qValue)
