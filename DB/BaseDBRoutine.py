@@ -9,8 +9,6 @@ T-SQL
 
 
 class CDatabaseRoutine(object):
-    u"""cond = [.., db.func.age(tableClient['birthDate'], tableEvent['setDate']) >= 18"""
-
     FUNCTION = 1
     PROCEDURE = 2
 
