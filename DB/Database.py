@@ -238,3 +238,31 @@ class CDatabase(QObject):
 
     def getTestConnectionStmt(self):
         return u'select \'test connection query\';'
+
+    def checkdb(self):
+        if not self.db or not self.db.isValid() or not self.db.isOpen():
+            raise CDatabaseException(CDatabase.errDatabaseIsNotOpen)
+
+    def isValid(self):
+        return self.db is not None and self.db.isValid() and self.db.isOpen()
+
+    def checkConnect(self, quietRestoreConnection=False):
+        self.checkdb()
+
+        testQuery = QtSql.QSqlQuery(self.db)
+        stmt = self.getTestConnectionStmt()
+        if testQuery.exec_(stmt):
+            return
+        else:
+            sqlError = testQuery.lastError()
+
+        if self.isConnectionLostError(sqlError):
+            if self.restoreConnection(quietRestoreConnection):
+                return
+            else:
+                self.connectDown()
+
+        raise self.onError(stmt, sqlError)
+
+    def driver(self):
+        return self.db.driver()
