@@ -4,7 +4,8 @@ from PyQt4.QtCore import QObject, QVariant, pyqtSignal, Qt
 from PyQt4.QtGui import QMessageBox
 
 from DB.Field import CField
-from DB.Tools import decorateString, CSqlExpression, CSubQueryTable
+from DB.Table import CTable
+from DB.Tools import decorateString, CSqlExpression, CSubQueryTable, CJoin, CUnionTable
 from Utils.Exceptions import CDatabaseException
 from Utils.Forcing import toVariant, forceString
 
@@ -266,3 +267,36 @@ class CDatabase(QObject):
 
     def driver(self):
         return self.db.driver()
+
+    def forceTable(self, table, idFieldName='id'):
+        if isinstance(table, (CTable, CJoin, CUnionTable, CSubQueryTable)):
+            return table
+        elif isinstance(table, basestring):
+            return self.table(table, idFieldName=idFieldName)
+        else:
+            raise AssertionError, u'Недопустимый тип'
+
+    def mainTable(self, tableExpr, idFieldName='id'):
+        if isinstance(tableExpr, (CTable, CJoin)):
+            return tableExpr
+        elif isinstance(tableExpr, basestring):
+            name = tableExpr.split(None, 1)[0] if ' ' in tableExpr else tableExpr
+            return self.table(name, idFieldName)
+        else:
+            raise AssertionError, u'Недопустимый тип'
+
+    def getTableName(self, table):
+        # soltanoff: проверка на строковость необходима, чтобы избежать рекурсию:
+        # forceTable -> CTable.__init__() -> CTable.record() -> selectStmt() -> getTableName()
+        # да и нет смысла создавать класс таблицы, для того чтобы получить ее имя из строки
+        if isinstance(table, basestring):
+            if table.strip().lower().startswith('select '):
+                return ' '.join([u'(%s)' % table, self.aliasSymbol, u'someQueryTable'])
+            return table
+        return self.forceTable(table).name()
+
+    def formatDate(self, val):
+        return '\'' + str(val.toString(Qt.ISODate)) + '\''
+
+    def formatTime(self, val):
+        return '\'' + str(val.toString(Qt.ISODate)) + '\''
