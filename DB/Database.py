@@ -1,9 +1,12 @@
 # -*- coding: utf-8 -*-
 from PyQt4 import QtGui, QtSql
 from PyQt4.QtCore import QObject, QVariant, pyqtSignal, Qt
+from PyQt4.QtGui import QMessageBox
 
 from DB.Field import CField
 from DB.Tools import decorateString, CSqlExpression, CSubQueryTable
+from Utils.Exceptions import CDatabaseException
+from Utils.Forcing import toVariant, forceString
 
 
 class CDatabase(QObject):
@@ -149,3 +152,89 @@ class CDatabase(QObject):
         else:
             qValue = toVariant(value)
             return cls.formatValueEx(qValue.type(), qValue)
+
+    def createConnection(self, driverName, connectionName, serverName, serverPort, databaseName, userName, password):
+        if connectionName:
+            if not QtSql.QSqlDatabase.contains(connectionName):
+                db = QtSql.QSqlDatabase.addDatabase(driverName, connectionName)
+            else:
+                db = QtSql.QSqlDatabase.database(connectionName)
+        else:
+            db = QtSql.QSqlDatabase.addDatabase(driverName)
+        if not db.isValid():
+            raise CDatabaseException(CDatabase.errCannotConnectToDatabase % driverName, db.lastError())
+        db.setHostName(serverName)
+        if serverPort:
+            db.setPort(serverPort)
+        db.setDatabaseName(databaseName)
+        db.setUserName(userName)
+        db.setPassword(password)
+        self.db = db
+
+    def isConnectionLostError(self, sqlError):
+        driverText = forceString(sqlError.driverText()).lower()
+        if 'lost connection' in driverText:
+            return True
+        if 'server has gone away' in driverText:
+            return True
+        return False
+
+    def connectUp(self):
+        if not self.db.open():
+            raise CDatabaseException(CDatabase.errCannotOpenDatabase % self.db.databaseName(), self.db.lastError())
+        self.restoreConnectState = 0
+        self._transactionCallStackByLevel = []
+        self._openTransactionsCount = 0
+        self.connected.emit()
+
+    def reconnect(self):
+        if not (self.db and self.db.isValid):
+            return False
+        if self.db.isOpen():
+            self.db.close()
+        if not self.db.open():
+            self.connectDown()
+            return False
+        self.connected.emit()
+        return True
+
+    def connectDown(self):
+        self.db.close()
+        self._transactionCallStackByLevel = []
+        self._openTransactionsCount = 0
+        self.disconnected.emit()
+
+    def close(self):
+        if self.db:
+            connectionName = self.db.connectionName()
+            self.connectDown()
+            QtSql.QSqlDatabase.removeDatabase(connectionName)
+            self.driver = None
+            self.db = None
+        self.tables = {}
+
+    def restoreConnection(self, quiet=False):
+        self.restoreConnectState = 1
+        isReconnect = quiet or QMessageBox.critical(
+            QtGui.qApp.activeWindow(),
+            u'Внимание',
+            CDatabase.errConnectionLost + u'\nПопробовать восстановить подключение?',
+            QMessageBox.Yes | QMessageBox.No,
+            QMessageBox.Yes
+        ) == QMessageBox.Yes
+        if isReconnect:
+            if self.reconnect():
+                self.restoreConnectState = 0
+                return True
+            else:
+                QMessageBox.critical(
+                    QtGui.qApp.activeWindow(),
+                    u'Критическая ошибка',
+                    self.errRestoreConnectionFailed,
+                    QMessageBox.Ok
+                )
+        self.restoreConnectState = 2
+        return False
+
+    def getTestConnectionStmt(self):
+        return u'select \'test connection query\';'
