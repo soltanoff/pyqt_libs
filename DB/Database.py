@@ -505,3 +505,63 @@ class CDatabase(QObject):
     def prepareLimit(cls, limit):
         raise NotImplementedError
 
+
+    def selectStmt(
+            self,
+            table,
+            fields='*',
+            where='',
+            group='',
+            order='',
+            limit=None,
+            isDistinct=False,
+            rowNumberFieldName=None,
+            having=''
+    ):
+        tableName = self.getTableName(table)
+
+        beginWord = 'SELECT'
+        if isDistinct:
+            beginWord += ' DISTINCT'
+        if rowNumberFieldName and fields != '*':
+            fields.insert(0, '@__rowNumber := @__rowNumber + 1 AS %s' % rowNumberFieldName)
+            tableName += ', (select @__rowNumber := 0) as __rowNumberInit'
+        return ' '.join([
+            beginWord, self.prepareFieldList(fields),
+            'FROM', tableName,
+            self.prepareWhere(where),
+            self.prepareGroup(group),
+            self.prepareHaving(having),
+            self.prepareOrder(order),
+            self.prepareLimit(limit)])
+
+    def selectMax(self, table, col='id', where=''):
+        return self.selectStmt(table, self.max(col), where)
+
+    def selectMin(self, table, col='id', where=''):
+        return self.selectStmt(table, self.min(col), where)
+
+    def selectExpr(self, fields):
+        u"""
+        :type fields: CField or list of CField
+        :rtype: QtSql.QSqlRecord
+        """
+        stmt = ' '.join(['SELECT', self.prepareFieldList(fields)])
+        query = self.query(stmt)
+        if query.first():
+            record = query.record()
+            return record
+        return None
+
+    def existsStmt(self, table, where, limit=None):
+        field = '*'
+
+        if isinstance(table, CJoin):
+            mainTable = table.getMainTable()
+            if mainTable.hasField('id'):
+                field = mainTable['id'].name()
+
+        return 'EXISTS (%s)' % self.selectStmt(table, field, where, limit=limit)
+
+    def notExistsStmt(self, table, where):
+        return 'NOT %s' % self.existsStmt(table, where)
