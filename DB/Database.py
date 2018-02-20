@@ -300,3 +300,129 @@ class CDatabase(QObject):
 
     def formatTime(self, val):
         return '\'' + str(val.toString(Qt.ISODate)) + '\''
+
+    def coalesce(self, *args):
+        return CSqlExpression(self, u'COALESCE({0})'.format(u', '.join(map(self.formatArg, args))))
+
+    def ifnull(self, exp1, exp2):
+        return CSqlExpression(self, u'IFNULL({0}, {1})'.format(self.forceField(exp1), self.forceField(exp2)))
+
+    @classmethod
+    def joinAnd(cls, itemList):
+        return (('((' if len(itemList) > 1 else '(') +
+                u') AND ('.join(u'%s' % item for item in itemList) +
+                ('))' if len(itemList) > 1 else ')')) if itemList else ''
+
+    @classmethod
+    def joinOr(cls, itemList):
+        return (('((' if len(itemList) > 1 else '(') +
+                u') OR ('.join(u'%s' % item for item in itemList) +
+                ('))' if len(itemList) > 1 else ')')) if itemList else ''
+
+    def not_(self, expr):
+        return u'NOT ({0})'.format(expr)
+
+    def if_(self, cond, thenPart, elsePart):
+        return CSqlExpression(self, u'IF({0}, {1}, {2})'.format(cond,
+                                                                self.forceField(thenPart),
+                                                                self.forceField(elsePart)), QVariant.Bool)
+
+    def case(self, field, caseDict, elseValue=None):
+        parts = [
+            u'WHEN {0} THEN {1}'.format(self.forceField(cond), self.forceField(value))
+            for cond, value in caseDict.iteritems()
+        ]
+        if elseValue:
+            parts.append(u'ELSE {0}'.format(self.forceField(elseValue)))
+        return CSqlExpression(self, u'CASE {0} {1} END'.format(self.forceField(field), u' '.join(parts)))
+
+    def concat(self, *args):
+        return CSqlExpression(self, u'CONCAT({0})'.format(u', '.join(map(self.formatArg, args))))
+
+    def concat_ws(self, sep, *args):
+        return CSqlExpression(
+            self, u'CONCAT_WS({0}, {1})'.format(self.formatArg(sep), u', '.join(map(self.formatArg, args))))
+
+    def group_concat(self, item, distinct=False):
+        return CSqlExpression(self, u'GROUP_CONCAT({0}{1})'.format(u'DISTINCT ' if distinct else u'', item))
+
+    def count(self, item, distinct=False):
+        return CSqlExpression(
+            self, u'COUNT({0}{1})'.format(u'DISTINCT ' if distinct else u'', item if item else '*'), QVariant.Int)
+
+    def countIf(self, cond, item, distinct=False):
+        return self.count(self.if_(cond, item, 'NULL'), distinct)
+
+    def datediff(self, dateTo, dateFrom):
+        return CSqlExpression(self, u'DATEDIFF({0}, {1})'.format(dateTo, dateFrom), QVariant.Int)
+
+    def addDate(self, date, count, type='DAY'):
+        return CSqlExpression(self, u'ADDDATE({0}, INTERVAL {1} {2})'.format(date, count, type), QVariant.Date)
+
+    def subDate(self, date, count, type='DAY'):
+        return CSqlExpression(self, u'SUBDATE({0}, INTERVAL {1} {2})'.format(date, count, type), QVariant.Date)
+
+    def date(self, date):
+        return CSqlExpression(self, u'DATE({0})'.format(self.forceField(date)))
+
+    def dateYear(self, date):
+        return CSqlExpression(self, u'YEAR({0})'.format(date), QVariant.Int)
+
+    def dateQuarter(self, date):
+        return CSqlExpression(self, u'QUARTER({0})'.format(date), QVariant.Int)
+
+    def dateMonth(self, date):
+        return CSqlExpression(self, u'MONTH({0})'.format(date), QVariant.Int)
+
+    def dateDay(self, date):
+        return CSqlExpression(self, u'DAY({0})'.format(date), QVariant.Int)
+
+    def isZeroDate(self, date):
+        return self.forceField(date).eq(self.valueField('0000-00-00'))
+
+    def isNullDate(self, date):
+        return self.joinOr([self.forceField(date).isNull(),
+                            self.isZeroDate(date)])
+
+    def sum(self, item):
+        return CSqlExpression(
+            self, u'SUM({0})'.format(item), item.fieldType() if isinstance(item, CField) else toVariant(item).type())
+
+    def sumIf(self, cond, item):
+        return self.sum(self.if_(cond, item, 0))
+
+    def max(self, item):
+        return CSqlExpression(self, u'MAX({0})'.format(item), QVariant.Int)
+
+    def min(self, item):
+        return CSqlExpression(self, u'MIN({0})'.format(item), QVariant.Int)
+
+    def least(self, *args):
+        return CSqlExpression(self, u'LEAST({0})'.format(u', '.join(map(self.formatArg, args))))
+
+    def greatest(self, *args):
+        return CSqlExpression(self, u'GREATEST({0})'.format(u', '.join(map(self.formatArg, args))))
+
+    def left(self, str, len):
+        return CSqlExpression(self, u'LEFT({0}, {1})'.format(str, len), QVariant.String)
+
+    def right(self, str, len):
+        return CSqlExpression(self, u'RIGHT({0}, {1})'.format(str, len), QVariant.String)
+
+    def curdate(self):
+        return CSqlExpression(self, u'CURDATE()', QVariant.Date)
+
+    def now(self):
+        return CSqlExpression(self, u'NOW()', QVariant.DateTime)
+
+    def joinOp(self, op, *args):
+        return CSqlExpression(self, u'({0})'.format(op.join(map(self.formatArg, args))), QVariant.Int)
+
+    def bitAnd(self, *args):
+        return self.joinOp(u'&', *args)
+
+    def bitOr(self, *args):
+        return self.joinOp(u'|', *args)
+
+    def bitXor(self, *args):
+        return self.joinOp(u'^', *args)
