@@ -426,3 +426,82 @@ class CDatabase(QObject):
 
     def bitXor(self, *args):
         return self.joinOp(u'^', *args)
+
+    @classmethod
+    def prepareFieldList(cls, fields):
+        if isinstance(fields, (list, tuple)):
+            return ', '.join([field.name() if isinstance(field, CField) else field for field in fields])
+        return fields.name() if isinstance(fields, CField) else fields
+
+    @staticmethod
+    def CONCAT_WS(fields, alias='', separator=' '):
+        result = 'CONCAT_WS('
+        result += ('\'' + separator + '\'')
+        result += ', '
+        if isinstance(fields, (list, tuple)):
+            for field in fields:
+                result += field.name() if isinstance(field, CField) else field
+                result += ', '
+        else:
+            result += fields.name() if isinstance(fields, CField) else fields
+            result += ', '
+        result = result[:len(result) - 2]
+        result += ')'
+        if alias: result += (' AS ' + '`' + alias + '`')
+
+        return result
+
+    @classmethod
+    def dateTimeIntersection(cls, fieldBegDateTime, fieldEndDateTime, begDateTime, endDateTime):
+        if fieldBegDateTime is not None and fieldEndDateTime is not None and begDateTime is not None and endDateTime is not None:
+            return cls.joinAnd([
+                cls.joinOr([fieldBegDateTime.datetimeGe(begDateTime), fieldEndDateTime.datetimeGe(begDateTime),
+                            fieldEndDateTime.isNull()]),
+                # FIXME: fieldBegDateTime.isNull() у нас такого быть не может, но логически правильно. Возможно, в целях оптимизации, можно и вырезать
+                cls.joinOr([fieldBegDateTime.datetimeLe(endDateTime), fieldEndDateTime.datetimeLe(endDateTime),
+                            fieldBegDateTime.isNull()])
+            ])
+        else:
+            return ''
+
+    @classmethod
+    def prepareWhere(cls, cond):
+        if isinstance(cond, (list, tuple)):
+            cond = cls.joinAnd(cond)
+        return u' WHERE %s' % cond if cond else u''
+
+    @classmethod
+    def prepareOrder(cls, orderFields):
+        if isinstance(orderFields, (list, tuple)):
+            orderFields = ', '.join(
+                [orderField.name() if isinstance(orderField, CField) else orderField for orderField in orderFields])
+        if orderFields:
+            return ' ORDER BY ' + (orderFields.name() if isinstance(orderFields, CField) else orderFields)
+        else:
+            return ''
+
+    @classmethod
+    def prepareGroup(cls, groupFields):
+        if isinstance(groupFields, (list, tuple)):
+            groupFields = ', '.join(
+                [groupField.name() if isinstance(groupField, CField) else groupField for groupField in groupFields])
+        if groupFields:
+            return ' GROUP BY ' + (groupFields.name() if isinstance(groupFields, CField) else groupFields)
+        else:
+            return ''
+
+    @classmethod
+    def prepareHaving(cls, havingFields):
+        if isinstance(havingFields, (list, tuple)):
+            havingFields = cls.joinAnd(
+                [havingField.name() if isinstance(havingField, CField) else havingField for havingField in
+                 havingFields])
+        if havingFields:
+            return ' HAVING ' + (havingFields.name() if isinstance(havingFields, CField) else havingFields)
+        else:
+            return ''
+
+    @classmethod
+    def prepareLimit(cls, limit):
+        raise NotImplementedError
+
