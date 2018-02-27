@@ -2,6 +2,7 @@
 from PyQt4 import QtCore, QtGui
 
 
+# TODO: soltanoff: это какая-то дичь, нужно переписать ее. Смените логику, плез
 class CCOMPortReaderThread(QtCore.QThread):
     class CCOMPortWorker(QtCore.QObject):
         read = QtCore.pyqtSignal(dict)
