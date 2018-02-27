@@ -126,7 +126,7 @@ class CDatabase(QObject):
       не срабатывает из-за того, что driver.hasFeature(QSqlDriver.LowPrecisionNumbers)
       возвращает false
     - при записи значения в запрос формируется значение с запятой, что неприемлемо для MySql сервера
-    поэтому принято решение написать свой вариант formatValue
+      поэтому принято решение написать свой вариант formatValue
     """
 
     @classmethod
@@ -543,6 +543,7 @@ class CDatabase(QObject):
 
     def selectExpr(self, fields):
         u"""
+        Метод обарачивающий абстракцию подзапроса в python-код.
         :type fields: CField or list of CField
         :rtype: QtSql.QSqlRecord
         """
@@ -555,7 +556,6 @@ class CDatabase(QObject):
 
     def existsStmt(self, table, where, limit=None):
         field = '*'
-
         if isinstance(table, CJoin):
             mainTable = table.getMainTable()
             if mainTable.hasField('id'):
