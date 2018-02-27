@@ -4,8 +4,7 @@ from PyQt4.QtCore import *
 from Utils.Forcing import forceString, forceStringEx, forceInt
 
 
-def trim(s):
-    return forceString(s).strip()
+trim = lambda x: forceString(s).strip()
 
 
 # TODO: soltanoff: странный метод... Нужно сделать проще, зачем так сложно?
