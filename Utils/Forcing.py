@@ -28,10 +28,7 @@ def toVariant(v):
         return QVariant(v)
 
 
-def forceBool(val):
-    if isinstance(val, QVariant):
-        return val.toBool()
-    return bool(val)
+forceBool = lambda x: val.toBool() if isinstance(val, QVariant) else bool(val)
 
 
 def forceDate(val):
