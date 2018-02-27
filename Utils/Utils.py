@@ -4,7 +4,6 @@ from functools import wraps
 UTILS_FUNCTION_RESULT_CACHE = dict()
 
 
-# TODO: soltanoff: сделать проверку на использование в classmethod, поскольку ключ кеша формуриется странный.
 # TODO: soltanoff: исключить из аргументов `self`
 def memorize(func):
     @wraps(func)
