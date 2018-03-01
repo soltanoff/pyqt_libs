@@ -381,8 +381,7 @@ class CDatabase(QObject):
         return self.forceField(date).eq(self.valueField('0000-00-00'))
 
     def isNullDate(self, date):
-        return self.joinOr([self.forceField(date).isNull(),
-                            self.isZeroDate(date)])
+        return self.joinOr([self.forceField(date).isNull(), self.isZeroDate(date)])
 
     def sum(self, item):
         return CSqlExpression(
@@ -455,11 +454,16 @@ class CDatabase(QObject):
     def dateTimeIntersection(cls, fieldBegDateTime, fieldEndDateTime, begDateTime, endDateTime):
         if fieldBegDateTime is not None and fieldEndDateTime is not None and begDateTime is not None and endDateTime is not None:
             return cls.joinAnd([
-                cls.joinOr([fieldBegDateTime.datetimeGe(begDateTime), fieldEndDateTime.datetimeGe(begDateTime),
-                            fieldEndDateTime.isNull()]),
-                # FIXME: fieldBegDateTime.isNull() у нас такого быть не может, но логически правильно. Возможно, в целях оптимизации, можно и вырезать
-                cls.joinOr([fieldBegDateTime.datetimeLe(endDateTime), fieldEndDateTime.datetimeLe(endDateTime),
-                            fieldBegDateTime.isNull()])
+                cls.joinOr([
+                    fieldBegDateTime.datetimeGe(begDateTime),
+                    fieldEndDateTime.datetimeGe(begDateTime),
+                    fieldEndDateTime.isNull()
+                ]),
+                cls.joinOr([
+                    fieldBegDateTime.datetimeLe(endDateTime),
+                    fieldEndDateTime.datetimeLe(endDateTime),
+                    fieldBegDateTime.isNull()
+                ])
             ])
         else:
             return ''
@@ -484,7 +488,8 @@ class CDatabase(QObject):
     def prepareGroup(cls, groupFields):
         if isinstance(groupFields, (list, tuple)):
             groupFields = ', '.join(
-                [groupField.name() if isinstance(groupField, CField) else groupField for groupField in groupFields])
+                [groupField.name() if isinstance(groupField, CField) else groupField for groupField in groupFields]
+            )
         if groupFields:
             return ' GROUP BY ' + (groupFields.name() if isinstance(groupFields, CField) else groupFields)
         else:
@@ -555,6 +560,11 @@ class CDatabase(QObject):
         return None
 
     def existsStmt(self, table, where, limit=None):
+        u"""
+        Метод обарачивающий абстракцию подзапроса `EXISTS(...)` в python-код.
+        :type fields: CField or list of CField
+        :rtype: QtSql.QSqlRecord
+        """
         field = '*'
         if isinstance(table, CJoin):
             mainTable = table.getMainTable()
@@ -564,4 +574,9 @@ class CDatabase(QObject):
         return 'EXISTS (%s)' % self.selectStmt(table, field, where, limit=limit)
 
     def notExistsStmt(self, table, where):
+        u"""
+        Метод обарачивающий абстракцию подзапроса `NOT EXISTS(...)` в python-код.
+        :type fields: CField or list of CField
+        :rtype: QtSql.QSqlRecord
+        """
         return 'NOT %s' % self.existsStmt(table, where)
