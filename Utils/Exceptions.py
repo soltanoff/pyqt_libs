@@ -31,10 +31,16 @@ class CSoapException(CException):
     def __init__(self, message):
         CException.__init__(self, message)
 
+    def __unicode__(self):
+        return self.message
+
 
 class CDbfImportException(CException):
     def __init__(self, message=''):
         CException.__init__(self, message)
+
+    def __unicode__(self):
+        return self.message
 
 
 class CSynchronizeAttachException(CException):
