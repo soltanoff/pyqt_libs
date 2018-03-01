@@ -28,6 +28,7 @@ def printQueryTime(callStack=False, printQueryFirst=False):
                 if callStack:
                     print '\n'
                     traceback.print_stack(file=sys.__stdout__)
+
             sys.__stdout__.write('\n')
             t1 = datetime.datetime.today()
             result = query(self, stmt)
@@ -35,10 +36,12 @@ def printQueryTime(callStack=False, printQueryFirst=False):
             numRows = result.size() if result.isSelect() else result.numRowsAffected()
             if printQueryFirst:
                 sys.__stdout__.write(
-                    u'[%s][%6dms][%5d rows]' % (t1, totalSeconds(t2 - t1) * 1000.0, numRows))
+                    u'[%s][%6dms][%5d rows]' % (t1, totalSeconds(t2 - t1) * 1000.0, numRows)
+                )
             else:
                 sys.__stdout__.write(
-                    u'[%s][%6dms][%5d rows]: %s' % (t1, totalSeconds(t2 - t1) * 1000.0, numRows, printableQuery(stmt)))
+                    u'[%s][%6dms][%5d rows]: %s' % (t1, totalSeconds(t2 - t1) * 1000.0, numRows, printableQuery(stmt))
+                )
                 if callStack:
                     print '\n'
                     traceback.print_stack()
@@ -51,8 +54,6 @@ def printQueryTime(callStack=False, printQueryFirst=False):
 def logFunctionCalls():
     def trace(frame, event, arg):
         if event == 'call':
-            # filename = frame.f_code.co_filename
-            # line_no = frame.f_lineno
             traceback.print_stack(frame)
     sys.settrace(trace)
 

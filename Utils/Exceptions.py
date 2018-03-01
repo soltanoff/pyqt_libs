@@ -19,12 +19,7 @@ class CRarException(CException):
     def __init__(self, message):
         super(CRarException, self).__init__(message)
         self._windowTitle = u"Ошибка при архивации"
-
-    def __str__(self):
-        return self._message
-
-    def __unicode__(self):
-        return self._message
+        self.message = message
 
     def getWindowTitle(self):
         return self._windowTitle
