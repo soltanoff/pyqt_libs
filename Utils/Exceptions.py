@@ -24,6 +24,8 @@ class CRarException(CException):
     def getWindowTitle(self):
         return self._windowTitle
 
+    def __unicode__(self):
+        return self.message
 
 class CSoapException(CException):
     def __init__(self, message):
