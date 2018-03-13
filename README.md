@@ -25,3 +25,4 @@ For example, see how can be organized `Foo` and `Bar` libraries:
 
 
 This libs can be for `PyQt5`, but now using `PyQt4`.
+For `python 2.7.12+`
