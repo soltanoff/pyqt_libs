@@ -1,4 +1,6 @@
 # -*- coding: utf-8 -*-
+import traceback
+
 from PyQt4 import QtGui, QtSql
 from PyQt4.QtCore import QObject, QVariant, pyqtSignal, Qt
 from PyQt4.QtGui import QMessageBox
@@ -6,8 +8,9 @@ from PyQt4.QtGui import QMessageBox
 from DB.Field import CField
 from DB.Table import CTable
 from DB.Tools import decorateString, CSqlExpression, CSubQueryTable, CJoin, CUnionTable
-from Utils.Exceptions import CDatabaseException
+from Utils.Exceptions import CDatabaseException, CException
 from Utils.Forcing import toVariant, forceString
+from Utils.Utils import compareCallStack
 
 
 class CDatabase(QObject):
@@ -580,3 +583,83 @@ class CDatabase(QObject):
         :rtype: QtSql.QSqlRecord
         """
         return 'NOT %s' % self.existsStmt(table, where)
+
+    def _decreaseOpenTransactionCount(self):
+        if self._openTransactionsCount > 0 and self._transactionCallStackByLevel:
+            self._openTransactionsCount -= 1
+            self._transactionCallStackByLevel.pop()
+        else:
+            raise CException(self.errUnexpectedTransactionCompletion)
+
+    def nestedTransaction(self):
+        formatedPrevTransactionStack = '\n'.join(
+            traceback.format_list(self._transactionCallStackByLevel[self._openTransactionsCount - 1]))
+        # self.decreaseTransactionLevel()
+        raise CException('\n'.join([self.errNestedTransactionCall,
+                                    self.errPreviousTransactionCallStack % formatedPrevTransactionStack]))
+
+    def checkCallStackInheritance(self, currentCallStack):
+        prevCallStack = self._transactionCallStackByLevel[self._openTransactionsCount - 1] \
+            if (self._openTransactionsCount - 1) in xrange(len(self._transactionCallStackByLevel)) \
+            else []
+        compareCallStackResult = compareCallStack(prevCallStack, currentCallStack, 'traceback.extract_stack()')
+        if prevCallStack and compareCallStackResult[1] != 1:
+            formatedPrevTransactionStack = '\n'.join(traceback.format_list(prevCallStack))
+            raise CException('\n'.join([self.errInheritanceTransaction,
+                                        self.errPreviousTransactionCallStack % formatedPrevTransactionStack]))
+
+    def transaction(self, checkIsInit=False):
+        """
+            Открывает транзакцию.
+            Если ранее уже была открыта транзакция, то открывает вложенную транзакцию.
+        :param checkIsInit: Включить проверку того, что открываемая транзакция должна быть первой\основной.
+        """
+        self.checkdb()
+
+        currentCallStack = traceback.extract_stack()
+        self.checkCallStackInheritance(currentCallStack)
+
+        if self._openTransactionsCount == 0:
+            if not self.db.transaction():
+                raise CDatabaseException(CDatabase.errTransactionError, self.db.lastError())
+        elif checkIsInit:
+            raise CException(CDatabase.errNoRootTransaction % self._openTransactionsCount)
+        else:
+            self.nestedTransaction()
+
+        self._openTransactionsCount += 1
+        self._transactionCallStackByLevel.append(currentCallStack)
+
+    def nestedCommit(self):
+        pass
+
+    def nestedRollback(self):
+        pass
+
+    def commit(self):
+        self.checkdb()
+
+        currentCallStack = traceback.extract_stack()
+        self.checkCallStackInheritance(currentCallStack)
+
+        if self._openTransactionsCount == 1:
+            if not self.db.commit():
+                raise CDatabaseException(CDatabase.errCommitError, self.db.lastError())
+        else:
+            self.nestedCommit()
+
+        self._decreaseOpenTransactionCount()
+
+    def rollback(self):
+        self.checkdb()
+
+        currentCallStack = traceback.extract_stack()
+        self.checkCallStackInheritance(currentCallStack)
+
+        if (self._openTransactionsCount - 1) == 0:
+            if not self.db.rollback():
+                raise CDatabaseException(CDatabase.errRollbackError, self.db.lastError())
+        else:
+            self.nestedRollback()
+
+        self._decreaseOpenTransactionCount()
