@@ -1,4 +1,6 @@
 # -*- coding: utf-8 -*-
+import traceback
+
 from PyQt4 import QtGui, QtSql
 from PyQt4.QtCore import QObject, QVariant, pyqtSignal, Qt
 from PyQt4.QtGui import QMessageBox
@@ -6,8 +8,9 @@ from PyQt4.QtGui import QMessageBox
 from DB.Field import CField
 from DB.Table import CTable
 from DB.Tools import decorateString, CSqlExpression, CSubQueryTable, CJoin, CUnionTable
-from Utils.Exceptions import CDatabaseException
+from Utils.Exceptions import CDatabaseException, CException
 from Utils.Forcing import toVariant, forceString
+from Utils.Utils import compareCallStack
 
 
 class CDatabase(QObject):
@@ -565,3 +568,141 @@ class CDatabase(QObject):
 
     def notExistsStmt(self, table, where):
         return 'NOT %s' % self.existsStmt(table, where)
+
+    def _decreaseOpenTransactionCount(self):
+        if self._openTransactionsCount > 0 and self._transactionCallStackByLevel:
+            self._openTransactionsCount -= 1
+            self._transactionCallStackByLevel.pop()
+        else:
+            raise CException(self.errUnexpectedTransactionCompletion)
+
+    def nestedTransaction(self):
+        formatedPrevTransactionStack = '\n'.join(
+            traceback.format_list(self._transactionCallStackByLevel[self._openTransactionsCount - 1])
+        )
+        raise CException('\n'.join([self.errNestedTransactionCall,
+                                    self.errPreviousTransactionCallStack % formatedPrevTransactionStack]))
+
+    def checkCallStackInheritance(self, currentCallStack):
+        prevCallStack = self._transactionCallStackByLevel[self._openTransactionsCount - 1] \
+            if (self._openTransactionsCount - 1) in xrange(len(self._transactionCallStackByLevel)) \
+            else []
+        compareCallStackResult = compareCallStack(prevCallStack, currentCallStack, 'traceback.extract_stack()')
+        if prevCallStack and compareCallStackResult[1] != 1:
+            formatedPrevTransactionStack = '\n'.join(traceback.format_list(prevCallStack))
+            raise CException('\n'.join([self.errInheritanceTransaction,
+                                        self.errPreviousTransactionCallStack % formatedPrevTransactionStack]))
+
+    def transaction(self, checkIsInit=False):
+        """
+            Открывает транзакцию.
+            Если ранее уже была открыта транзакция, то открывает вложенную транзакцию.
+        :param checkIsInit: Включить проверку того, что открываемая транзакция должна быть первой\основной.
+        """
+        self.checkdb()
+
+        currentCallStack = traceback.extract_stack()
+        self.checkCallStackInheritance(currentCallStack)
+
+        if self._openTransactionsCount == 0:
+            if not self.db.transaction():
+                raise CDatabaseException(CDatabase.errTransactionError, self.db.lastError())
+        elif checkIsInit:
+            raise CException(CDatabase.errNoRootTransaction % self._openTransactionsCount)
+        else:
+            self.nestedTransaction()
+
+        self._openTransactionsCount += 1
+        self._transactionCallStackByLevel.append(currentCallStack)
+
+    def nestedCommit(self):
+        pass
+
+    def nestedRollback(self):
+        pass
+
+    def commit(self):
+        self.checkdb()
+
+        currentCallStack = traceback.extract_stack()
+        self.checkCallStackInheritance(currentCallStack)
+
+        if self._openTransactionsCount == 1:
+            if not self.db.commit():
+                raise CDatabaseException(CDatabase.errCommitError, self.db.lastError())
+        else:
+            self.nestedCommit()
+
+        self._decreaseOpenTransactionCount()
+
+    def rollback(self):
+        self.checkdb()
+
+        currentCallStack = traceback.extract_stack()
+        self.checkCallStackInheritance(currentCallStack)
+
+        if (self._openTransactionsCount - 1) == 0:
+            if not self.db.rollback():
+                raise CDatabaseException(CDatabase.errRollbackError, self.db.lastError())
+        else:
+            self.nestedRollback()
+
+        self._decreaseOpenTransactionCount()
+
+    def table(self, tableName, idFieldName='id'):
+        if self.tables.has_key(tableName):
+            return self.tables[tableName]
+        else:
+            table = CTable(tableName, self)
+            if u'id' in [v.fieldName for v in table.fields]:
+                table.setIdFieldName(idFieldName)
+            self.tables[tableName] = table
+            return table
+
+    def join(self, firstTable, secondTable, onCond, stmt='JOIN'):
+        if isinstance(onCond, (list, tuple)):
+            onCond = self.joinAnd(onCond)
+        return CJoin(self.forceTable(firstTable), self.forceTable(secondTable), onCond, stmt)
+
+    def leftJoin(self, firstTable, secondTable, onCond):
+        return self.join(firstTable, secondTable, onCond, 'LEFT JOIN')
+
+    def innerJoin(self, firstTable, secondTable, onCond):
+        return self.join(firstTable, secondTable, onCond, 'INNER JOIN')
+
+    def record(self, tableName):
+        self.checkdb()
+        if tableName.strip().lower().startswith('select'):
+            res = self.query(tableName + self.prepareLimit(1)).record()
+        else:
+            parts = tableName.split('.', 1)
+            if len(parts) <= 1:
+                res = self.db.record(tableName)
+                if not res:  # проверка соединения и повторная попытка в случае потери подключения
+                    self.checkConnect()
+                    res = self.db.record(tableName)
+            else:
+                currentDatabaseName = self.db.databaseName()
+                databaseName = parts[0]
+                # проверка подключения производится внутри query
+                self.query('USE %s' % self.escapeSchemaName(databaseName))
+                res = self.db.record(parts[1])
+                self.query('USE %s' % self.escapeSchemaName(currentDatabaseName))
+
+        if res.isEmpty():
+            raise CDatabaseException(CDatabase.errTableNotFound % tableName)
+        return res
+
+    def recordFromDict(self, tableName, dct):
+        table = self.forceTable(tableName)
+        rec = table.newRecord(fields=dct.keys())
+        for fieldName, value in dct.iteritems():
+            rec.setValue(fieldName, toVariant(value))
+        return rec
+
+    def insertFromDict(self, tableName, dct):
+        return self.insertRecord(tableName, self.recordFromDict(tableName, dct))
+
+    def insertMultipleFromDict(self, tableName, lst):
+        for dct in lst:
+            self.insertRecord(tableName, self.recordFromDict(tableName, dct))
