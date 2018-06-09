@@ -750,3 +750,17 @@ class CDatabase(QObject):
             if stmt:
                 message += u'\n(%s)\n' % stmt
             raise CDatabaseException(message, lastError)
+
+    def getRecordEx(self, table=None, cols=None, where='', order='', stmt=None):
+        if stmt is None:
+            stmt = self.selectStmt(table, cols, where, order=order, limit=1)
+        query = self.query(stmt)
+        if query.first():
+            record = query.record()
+            return record
+        else:
+            return None
+
+    def getRecord(self, table, cols, itemId):
+        idCol = self.mainTable(table).idField()
+        return self.getRecordEx(table, cols, idCol.eq(itemId))
