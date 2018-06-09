@@ -8,6 +8,7 @@ from PyQt4.QtGui import QMessageBox
 from DB.Field import CField
 from DB.Table import CTable
 from DB.Tools import decorateString, CSqlExpression, CSubQueryTable, CJoin, CUnionTable
+from Utils.Debug import printQueryTime
 from Utils.Exceptions import CDatabaseException, CException
 from Utils.Forcing import toVariant, forceString
 from Utils.Utils import compareCallStack
@@ -508,7 +509,6 @@ class CDatabase(QObject):
     def prepareLimit(cls, limit):
         raise NotImplementedError
 
-
     def selectStmt(
             self,
             table,
@@ -706,3 +706,47 @@ class CDatabase(QObject):
     def insertMultipleFromDict(self, tableName, lst):
         for dct in lst:
             self.insertRecord(tableName, self.recordFromDict(tableName, dct))
+
+    @printQueryTime(callStack=True, printQueryFirst=True)
+    def query(self, stmt, quietReconnect=False):
+        # TODO: Обнаружено интересное поведение при отказе от восстановления разорванного соединения:
+        # Все query, ожидающие восстановления узнают, что соединение закрыто и checkdb захламляет error.log.
+        self.checkdb()
+        result = QtSql.QSqlQuery(self.db)
+        result.setForwardOnly(True)
+        result.setNumericalPrecisionPolicy(QtSql.QSql.LowPrecisionDouble)
+        repeatCounter = 0
+        needRepeat = True
+        while needRepeat:
+            needRepeat = False
+            if not result.exec_(stmt):
+                lastError = result.lastError()
+                if lastError.databaseText().contains(self.returnedDeadlockErrorText):
+                    needRepeat = repeatCounter <= self.deadLockRepeat
+                elif self.isConnectionLostError(lastError):
+                    if self.restoreConnection(quietReconnect or self.restoreConnectState == 1):
+                        needRepeat = True
+                    else:
+                        self.connectDown()
+                else:
+                    needRepeat = False
+                    self.onError(stmt, lastError)
+            repeatCounter += 1
+        return result
+
+    def onError(self, stmt, sqlError):
+        raise CDatabaseException(stmt + u'\n' + CDatabase.errQueryError % stmt, sqlError)
+
+    @staticmethod
+    def checkDatabaseError(lastError, stmt=None):
+        if lastError.isValid() and lastError.type() != QtSql.QSqlError.NoError:
+            message = u'Неизвестная ошибка базы данных'
+            if lastError.type() == QtSql.QSqlError.ConnectionError:
+                message = u'Ошибка подключения к базе данных'
+            elif lastError.type() == QtSql.QSqlError.StatementError:
+                message = u'Ошибка SQL-запроса'
+            elif lastError.type() == QtSql.QSqlError.TransactionError:
+                message = u'Ошибка SQL-запроса'
+            if stmt:
+                message += u'\n(%s)\n' % stmt
+            raise CDatabaseException(message, lastError)
