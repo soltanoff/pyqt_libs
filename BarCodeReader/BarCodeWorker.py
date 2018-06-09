@@ -21,7 +21,9 @@ class CBarCodeWorker(QtCore.QObject):
         try:
             import serial
 
-            if hasattr(QtGui.qApp, 'barcodeSerialPort'): QtGui.qApp.barcodeSerialPort.close()
+            if hasattr(QtGui.qApp, 'barcodeSerialPort'):
+                QtGui.qApp.barcodeSerialPort.close()
+
             QtGui.qApp.barcodeSerialPort = serial.Serial(self.port, 19200, timeout=1)
 
             while not self.close:

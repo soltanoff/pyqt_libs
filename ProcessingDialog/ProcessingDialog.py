@@ -8,7 +8,6 @@ from PyQt4.QtCore import QThread
 from Ui_LoadingScreen import Ui_LoadScreenForm
 
 
-# FIXME: зачем флаг isTerminated, можно же без него, или нет?
 class CProcessingDialog(QtGui.QDialog, Ui_LoadScreenForm):
     u"""
     Окно выполнения вычислений.
@@ -91,7 +90,7 @@ if __name__ == '__main__':
     dialog = CProcessingDialog(slowFunc, ("a", "iop", 7), waitTime=2)
     dialog.exec_()
     if dialog.isTerminated:
-        print("Function calculating is interupted!")
+        print("Function calculating is interrupted!")
     else:
         print("Function calculating is finished")
     print("\nSTOP")

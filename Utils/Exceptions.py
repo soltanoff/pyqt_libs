@@ -19,25 +19,28 @@ class CRarException(CException):
     def __init__(self, message):
         super(CRarException, self).__init__(message)
         self._windowTitle = u"Ошибка при архивации"
-
-    def __str__(self):
-        return self._message
-
-    def __unicode__(self):
-        return self._message
+        self.message = message
 
     def getWindowTitle(self):
         return self._windowTitle
 
+    def __unicode__(self):
+        return self.message
 
 class CSoapException(CException):
     def __init__(self, message):
         CException.__init__(self, message)
 
+    def __unicode__(self):
+        return self.message
+
 
 class CDbfImportException(CException):
     def __init__(self, message=''):
         CException.__init__(self, message)
+
+    def __unicode__(self):
+        return self.message
 
 
 class CSynchronizeAttachException(CException):

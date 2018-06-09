@@ -3,8 +3,7 @@ from PyQt4.QtCore import *
 
 from Utils.Forcing import forceString, forceStringEx, forceInt
 
-
-trim = lambda x: forceString(s).strip()
+trim = lambda x: forceString(x).strip()
 
 
 # TODO: soltanoff: странный метод... Нужно сделать проще, зачем так сложно?
@@ -70,7 +69,8 @@ def formatName(lastName, firstName, patrName):
 
 def formatShortNameInt(lastName, firstName, patrName):
     return trim(
-        lastName + ' ' + ((firstName[:1] + '.') if firstName else '') + ((patrName[:1] + '.') if patrName else ''))
+        lastName + ' ' + ((firstName[:1] + '.') if firstName else '') + ((patrName[:1] + '.') if patrName else '')
+    )
 
 
 def formatShortName(lastName, firstName, patrName):
