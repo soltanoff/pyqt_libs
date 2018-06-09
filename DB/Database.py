@@ -955,3 +955,42 @@ class CDatabase(QObject):
             return self.insertRecord(table, record)
         else:
             return self.updateRecord(table, record)
+
+    def deleteRecord(self, table, where):
+        table = self.forceTable(table)
+        #        table.beforeUpdate(record)
+        stmt = 'DELETE FROM  ' + table.name() + self.prepareWhere(where)
+        self.query(stmt)
+
+    def markRecordsDeleted(self, table, where):
+        table = self.forceTable(table)
+        stmt = 'UPDATE  ' + table.name() + ' SET deleted=1 '
+        if isinstance(where, tuple):
+            where = list(where)
+        if isinstance(where, list):
+            where.append('deleted = 0')
+        else:
+            where = '(' + where + ') AND deleted = 0'
+        stmt += self.prepareWhere(where)
+        self.query(stmt)
+
+    def updateRecords(self, table, expr, where=None):
+        recQuery = None
+        if table and expr:
+            table = self.forceTable(table)
+            if isinstance(expr, QtSql.QSqlRecord):
+                tmpRecord = QtSql.QSqlRecord(expr)
+                sets = []
+            else:
+                tmpRecord = QtSql.QSqlRecord()
+                sets = []
+                if not isinstance(expr, (list, tuple)):
+                    sets = [expr]
+                else:
+                    sets.extend(expr)
+            table.beforeUpdate(tmpRecord)
+            for i in xrange(tmpRecord.count()):
+                sets.append(table[tmpRecord.fieldName(i)].eq(tmpRecord.value(i)))
+            stmt = 'UPDATE ' + table.name() + ' SET ' + ', '.join(sets) + self.prepareWhere(where)
+            recQuery = self.query(stmt)
+        return recQuery
