@@ -958,7 +958,6 @@ class CDatabase(QObject):
 
     def deleteRecord(self, table, where):
         table = self.forceTable(table)
-        #        table.beforeUpdate(record)
         stmt = 'DELETE FROM  ' + table.name() + self.prepareWhere(where)
         self.query(stmt)
 
