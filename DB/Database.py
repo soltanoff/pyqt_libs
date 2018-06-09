@@ -11,7 +11,7 @@ from DB.Table import CTable
 from DB.Tools import decorateString, CSqlExpression, CSubQueryTable, CJoin, CUnionTable
 from Utils.Debug import printQueryTime
 from Utils.Exceptions import CDatabaseException, CException
-from Utils.Forcing import toVariant, forceString
+from Utils.Forcing import toVariant, forceString, forceRef
 from Utils.Utils import compareCallStack
 
 
@@ -993,3 +993,46 @@ class CDatabase(QObject):
             stmt = 'UPDATE ' + table.name() + ' SET ' + ', '.join(sets) + self.prepareWhere(where)
             recQuery = self.query(stmt)
         return recQuery
+
+    def getSum(self, table, sumCol='*', where=''):
+        stmt = self.selectStmt(table, 'SUM(%s)' % sumCol, where)
+        query = self.query(stmt)
+        if query.first():
+            return query.value(0)
+        else:
+            return 0
+
+    def getCount(self, table=None, countCol='1', where='', stmt=None):
+        if stmt is None:
+            stmt = self.selectStmt(table, 'COUNT(%s)' % countCol, where)
+        query = self.query(stmt)
+        if query.first():
+            return query.value(0).toInt()[0]
+        else:
+            return 0
+
+    def getDistinctCount(self, table, countCol='*', where=''):
+        stmt = self.selectStmt(table, 'COUNT(DISTINCT %s)' % countCol, where)
+        query = self.query(stmt)
+        if query.first():
+            return query.value(0).toInt()[0]
+        else:
+            return 0
+
+    def getColumnValues(self, table, column='id', where='', order='', limit=None, isDistinct=False,
+                        handler=forceString):
+        stmt = self.selectStmt(table, column, where, order=order, limit=limit, isDistinct=isDistinct)
+        query = self.query(stmt)
+        result = []
+        while query.next():
+            result.append(handler(query.value(0)))
+        return result
+
+    def getColumnValueMap(self, table, keyColumn='', valueColumn='', where='', order='', limit=None, isDistinct=False,
+                          keyHandler=forceRef, valueHandler=forceRef):
+        stmt = self.selectStmt(table, [keyColumn, valueColumn], where, order=order, limit=limit, isDistinct=isDistinct)
+        query = self.query(stmt)
+        result = {}
+        while query.next():
+            result[keyHandler(query.value(0))] = valueHandler(query.value(1))
+        return result
