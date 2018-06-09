@@ -1,6 +1,7 @@
 # -*- coding: utf-8 -*-
 import traceback
 
+import itertools
 from PyQt4 import QtGui, QtSql
 from PyQt4.QtCore import QObject, QVariant, pyqtSignal, Qt
 from PyQt4.QtGui import QMessageBox
@@ -764,3 +765,193 @@ class CDatabase(QObject):
     def getRecord(self, table, cols, itemId):
         idCol = self.mainTable(table).idField()
         return self.getRecordEx(table, cols, idCol.eq(itemId))
+
+
+    def updateRecord(self, table, record):
+        """
+        Производит обновление записи record  в таблице table
+        :param table: CTable, CJoin, CUnionTable, CSubQueryTable или строка
+        :param record:
+        :return:
+        None если не обновил
+        """
+        table = self.forceTable(table)
+        table.beforeUpdate(record)
+        fieldsCount = record.count()
+        idFieldName = table.idFieldName()
+        values = []
+        cond = ''
+        itemId = None
+        for i in range(fieldsCount):
+
+            # My insertion for 'rbImageMap' table
+            if table.name() == 'rbImageMap':
+                pair = self.escapeFieldName(record.fieldName(i)) + '=' + self.formatValue(record.field(i))
+                if record.fieldName(i) == idFieldName:
+                    cond = pair
+                    itemId = record.value(i).toInt()[0]
+                elif record.fieldName(i) == 'image':
+                    pass
+                else:
+                    values.append(pair)
+            else:
+                pair = self.escapeFieldName(record.fieldName(i)) + '=' + self.formatValue(record.field(i))
+                if record.fieldName(i) == idFieldName:
+                    cond = pair
+                    itemId = record.value(i).toInt()[0]
+                else:
+                    values.append(pair)
+        stmt = 'UPDATE ' + table.name() + ' SET ' + (', '.join(values)) + ' WHERE ' + cond
+        self.query(stmt)
+        return itemId
+
+    def insertRecord(self, table, record):
+        table = self.forceTable(table)
+        table.beforeInsert(record)
+        fieldsCount = record.count()
+        fields = []
+        values = []
+        for i in xrange(fieldsCount):
+            if not record.value(i).isNull():
+                fields.append(self.escapeFieldName(record.fieldName(i)))
+                values.append(self.formatValue(record.field(i)))
+        stmt = ('INSERT INTO ' + table.name() +
+                '(' + (', '.join(fields)) + ') ' +
+                'VALUES (' + (', '.join(values)) + ')')
+        itemId = self.query(stmt).lastInsertId().toInt()[0]
+        idFieldName = table.idFieldName()
+        record.setValue(idFieldName, QVariant(itemId))
+        return itemId
+
+    def insertMultipleRecords(self, table, records):
+        if len(records) == 0: return
+        table = self.forceTable(table)
+        fields = []
+        values = []
+        for i in xrange(len(records)):
+            tfields = []
+            tvalues = []
+            for j in xrange(records[i].count()):
+                tfields.append(self.escapeFieldName(records[i].fieldName(j)))
+                tvalues.append(self.formatValue(records[i].field(j)))
+            fields.append(tfields)
+            values.append(tvalues)
+        stmt = (u'INSERT INTO ' + table.name() + (u'(' + u', '.join(fields[0])) + u') VALUES')
+        for value in values:
+            stmt += (u'(' + u', '.join(value) + u'),')
+        stmt = stmt[:len(stmt) - 1]
+        self.query(stmt)
+
+    def insertMultipleRecordsByChunks(self, table, records, chunkSize=None):
+        if len(records) == 0: return
+        if chunkSize is None: chunkSize = len(records)
+        table = self.forceTable(table)
+        firstRecord = records[0]
+        fields = [self.escapeFieldName(firstRecord.fieldName(i)) for i in xrange(firstRecord.count())]
+        stmtInsert = u'INSERT INTO ' + table.name() + (u'(' + u', '.join(fields)) + u') VALUES '
+        recordsIterator = iter(records)
+        for _ in xrange(len(records) / chunkSize + 1):
+            values = []
+            for record in itertools.islice(recordsIterator, 0, chunkSize):
+                values.append([self.formatValue(record.field(i)) for i in xrange(record.count())])
+            if values:
+                rows = [u'(' + u', '.join(value) + u')' for value in values]
+                stmt = stmtInsert + ','.join(rows)
+                self.query(stmt)
+
+    def prepareInsertInto(self, table, fields):
+        table = self.forceTable(table)
+        return u'INSERT INTO {tableName} ({fields})'.format(
+            tableName=table.name(),
+            fields=u','.join(map(self.escapeFieldName, fields))
+        )
+
+    def prepareOnDuplicateKeyUpdate(self, fields, updateFields=None, keepOldFields=None):
+        u"""
+        Формирование условий обновления полей в INSERT INTO-запросе
+        :param fields: все затрагиваемые поля
+        :type fields: list
+        :param updateFields: список обновляемых полей (если не задано - все, кроме неизменяемых)
+        :type updateFields: list
+        :param keepOldFields: список полей, значения которых не изменяются в результате запроса
+        :type keepOldFields: list
+        :rtype: unicode
+        """
+        updateMap = {}
+        if keepOldFields is not None:
+            if updateFields is None:
+                updateFields = list(set(fields).difference(set(keepOldFields)))
+            else:
+                for field in keepOldFields:
+                    updateMap[field] = u'{field}={field}'.format(field=self.escapeFieldName(field))
+        if updateFields is not None:
+            for field in updateFields:
+                updateMap[field] = u'{field}=VALUES({field})'.format(field=self.escapeFieldName(field))
+
+        if updateMap:
+            return u'ON DUPLICATE KEY UPDATE {0}'.format(u','.join(updateMap.itervalues()))
+
+        return u''
+
+    def insertValues(self, table, fields, values=None, keepOldFields=None, updateFields=None):
+        u""" Множественная вставка в таблицу / обновление
+        :param table: Имя таблицы
+        :param fields:  Поля, затрагиваемые при обновлении/вставки
+        :param values: [list of tuple]: Список значениё полей
+        :param keepOldFields: Сохраняемые поля
+        :param updateFields: Обновляемые поля
+        :rtype: int | None """
+        if not (fields and values): return
+
+        parts = [
+            self.prepareInsertInto(table, fields),
+            u'VALUES {0}'.format(u','.join(u'(%s)' % u','.join(map(self.formatArg, v)) for v in values)),
+            self.prepareOnDuplicateKeyUpdate(fields, updateFields, keepOldFields)
+        ]
+        query = self.query(u' '.join(parts))
+        lastInsertId = query.lastInsertId().toInt()[0]
+        return lastInsertId
+
+    def insertItem(self, table, dct, fields=None, keepOldFields=None, updateFields=None):
+        u""" Вставка (обновление) записи
+        :type table: CTable | str
+        :type dct: dict
+        :param fields: список полей записи
+        :param keepOldFields: необновляемые поля
+        :param updateFields: обновляемые поля """
+        if not fields:
+            fields = dct.keys()
+        values = [tuple(dct.get(field) for field in fields)]
+        return self.insertValues(table, fields, values, keepOldFields=keepOldFields, updateFields=updateFields)
+
+    def insertFromDictList(self, table, dctList, fields=None, keepOldFields=None, updateFields=None, chunkSize=None):
+        u"""
+        Множественная вставка в таблицу / обновление из спика словарей
+        :param table: Имя таблицы
+        :param dctList: [list of dict]: [ .., { .., 'fieldName': value, .. }, .. ]
+        :param fields: Все затрагиваемые поля таблицы (если не задано, берутся из первого словаря)
+        :param keepOldFields: Сохраняемые поля
+        :param updateFields: Обновляемые поля
+        :param chunkSize: Разбиение запроса на группы по chunkSize
+        """
+        if not dctList: return
+        if not fields:
+            fields = dctList[0].keys()
+        if not chunkSize:
+            chunkSize = len(dctList)
+
+        listIterator = iter(dctList)
+        for _ in xrange(0, len(dctList), chunkSize):
+            values = [
+                tuple(dct.get(field) for field in fields)
+                for dct in itertools.islice(listIterator, 0, chunkSize)
+            ]
+            self.insertValues(table, fields, values, keepOldFields=keepOldFields, updateFields=updateFields)
+
+    def insertOrUpdate(self, table, record):
+        table = self.forceTable(table)
+        idFieldName = table.idFieldName()
+        if record.isNull(idFieldName):
+            return self.insertRecord(table, record)
+        else:
+            return self.updateRecord(table, record)
