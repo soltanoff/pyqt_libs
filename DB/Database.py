@@ -1123,3 +1123,46 @@ class CDatabase(QObject):
         while query.next():
             res.append(query.record())
         return res
+
+    def translate(self, table, keyCol, keyVal, valCol, idFieldName='id', order=''):
+        u"""
+        Возвращает значение поля для записи, соответствующей ключу.
+        Ищет в таблице table запись, у которой значение ключевого поля keyCol равно ключу keyVal и возвращает
+        значение поля valCol этой записи.
+
+        :param table: таблица для поиска
+        :param keyCol: ключевое поле (столбец)
+        :param keyVal: значение ключа поиска для ключевого поля/столбца
+        :param valCol: поле, значение которого необходимо вернуть из найденой записи
+        :param order: сортировка
+        :param idFieldName: наименование primary key
+        :return: значение поля valCol для найденной по ключу записи таблицы table
+        """
+        if keyCol == 'id' and keyVal is None: return None
+
+        table = self.forceTable(table, idFieldName)
+        if not isinstance(keyCol, CField): keyCol = table[keyCol]
+
+        cond = [keyCol.eq(keyVal)]
+        if isinstance(table, CTable) and table.hasField('deleted'): cond.append(table['deleted'].eq(0))
+
+        record = self.getRecordEx(table, valCol, cond, order)
+        if record:
+            return record.value(0)
+        else:
+            return None
+
+    def translateEx(self, table, keyCol, keyVal, valCol):
+        # При наличии флага deleted проверяем, чтобы он был равен 0
+        if keyCol == 'id' and keyVal is None:
+            return None
+        self.checkdb()
+        table = self.forceTable(table)
+        if not isinstance(keyCol, CField):
+            keyCol = table[keyCol]
+        cond = [keyCol.eq(keyVal)]
+        if table.hasField('deleted'):
+            cond.append(table['deleted'].eq(0))
+        record = self.getRecordEx(table, valCol, cond)
+        if record:
+            return record.value(0)
