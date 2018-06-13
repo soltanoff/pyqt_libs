@@ -1166,3 +1166,35 @@ class CDatabase(QObject):
         record = self.getRecordEx(table, valCol, cond)
         if record:
             return record.value(0)
+
+    def copyDepended(self, table, masterKeyCol, currentId, newId):
+        table = self.forceTable(table)
+        if not isinstance(masterKeyCol, CField):
+            masterKeyCol = table[masterKeyCol]
+        masterKeyColName = masterKeyCol.field.name()
+        result = []
+        stmt = self.selectStmt(table, '*', masterKeyCol.eq(currentId), order='id')
+        qquery = self.query(stmt)
+        while qquery.next():
+            record = qquery.record()
+            record.setNull('id')
+            record.setValue(masterKeyColName, toVariant(newId))
+            result.append(self.insertRecord(table, record))
+        return result
+
+    def getDescendants(self, table, groupCol, itemId):
+        table = self.forceTable(table)
+        group = groupCol if isinstance(groupCol, CField) else table[groupCol]
+
+        result = set([itemId])
+        parents = [itemId]
+
+        while parents:
+            cond = [group.inlist(parents)]
+            if table.hasField('deleted'):
+                cond.append(table['deleted'].eq(0))
+            children = set(self.getIdList(table, where=cond))
+            newChildren = children - result
+            result |= newChildren
+            parents = newChildren
+        return list(result)
