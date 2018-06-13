@@ -1036,3 +1036,92 @@ class CDatabase(QObject):
         while query.next():
             result[keyHandler(query.value(0))] = valueHandler(query.value(1))
         return result
+
+
+    def getIdList(self, table=None, idCol='id', where='', order='', limit=None, stmt=None):
+        u""" :rtype: list[int] """
+        return list(self.iterIdList(table, idCol, where, order, limit, stmt))
+
+    def iterIdList(self, table=None, idCol='id', where='', order='', limit=None, stmt=None):
+        if stmt is None:
+            stmt = self.selectStmt(table, idCol, where, order=order, limit=limit)
+        query = self.query(stmt)
+        while query.next():
+            yield query.value(0).toInt()[0]
+
+    def getDistinctIdList(self, table, idCol='id', where='', order='', limit=None):
+        """
+        Конструирует запрос по переданным аргументам к указанно таблице table
+        Выполняет его и из результата в result кладёт только Table.id указанный в idCol
+        Исключает повторы сторок в резальтате запроса
+        :param table: таблица к которой производится запрос
+        :param idCol: имя столббца который рассматривается как id
+        :param where: условия выборки записей
+        :param order: порядок сортироваки
+        :param limit: лимит записей в выборке
+        :return:
+        table.idCol list
+        """
+        stmt = self.selectStmt(table, idCol, where, order=order, limit=limit, isDistinct=True)
+        query = self.query(stmt)
+        result = []
+        while query.next():
+            result.append(query.value(0).toInt()[0])
+        return result
+
+    def getRecordList(
+            self,
+            table=None,
+            cols='*',
+            where='',
+            order='',
+            isDistinct=False,
+            limit=None,
+            rowNumberFieldName=None,
+            group='',
+            having='',
+            stmt=None
+    ):
+        return list(self.iterRecordList(
+            table, cols, where, order, isDistinct, limit, rowNumberFieldName, group, having, stmt
+        ))
+
+    def iterRecordList(
+            self,
+            table=None,
+            cols='*',
+            where='',
+            order='',
+            isDistinct=False,
+            limit=None,
+            rowNumberFieldName=None,
+            group='',
+            having='',
+            stmt=None
+    ):
+        u"""
+        :param rowNumberFieldName: псевдоним столбца, в который будет выводится номер строки (если имя задано).
+        :rtype: collections.Iterable[QtSql.QSqlRecord] """
+        if stmt is None:
+            stmt = self.selectStmt(
+                table,
+                cols,
+                where,
+                group=group,
+                order=order,
+                isDistinct=isDistinct,
+                limit=limit,
+                rowNumberFieldName=rowNumberFieldName,
+                having=having
+            )
+        query = self.query(stmt)
+        while query.next():
+            yield query.record()
+
+    def getRecordListGroupBy(self, table, cols='*', where='', group='', order=''):
+        stmt = self.selectStmt(table, cols, where, group=group, order=order)
+        res = []
+        query = self.query(stmt)
+        while query.next():
+            res.append(query.record())
+        return res
