@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
+import itertools
 import traceback
 
-import itertools
 from PyQt4 import QtGui, QtSql
 from PyQt4.QtCore import QObject, QVariant, pyqtSignal, Qt
 from PyQt4.QtGui import QMessageBox
@@ -766,7 +766,6 @@ class CDatabase(QObject):
         idCol = self.mainTable(table).idField()
         return self.getRecordEx(table, cols, idCol.eq(itemId))
 
-
     def updateRecord(self, table, record):
         """
         Производит обновление записи record  в таблице table
@@ -1036,7 +1035,6 @@ class CDatabase(QObject):
         while query.next():
             result[keyHandler(query.value(0))] = valueHandler(query.value(1))
         return result
-
 
     def getIdList(self, table=None, idCol='id', where='', order='', limit=None, stmt=None):
         u""" :rtype: list[int] """
