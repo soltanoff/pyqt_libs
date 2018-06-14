@@ -1198,3 +1198,93 @@ class CDatabase(QObject):
             result |= newChildren
             parents = newChildren
         return list(result)
+
+    def getTheseAndParents(self, table, groupCol, idList):
+        table = self.forceTable(table)
+        idField = table['id']
+        group = groupCol if isinstance(groupCol, CField) else table[groupCol]
+
+        result = set(idList)
+        children = idList
+
+        while children:
+            parents = set(
+                self.getDistinctIdList(table, idCol=groupCol, where=[idField.inlist(children), group.isNotNull()]))
+            newParents = parents - result
+            result |= newParents
+            children = newParents
+        return list(result)
+
+    def getCommonParent(self, table, idList, groupCol='group_id', idCol='id', searchTopCommonParent=False,
+                        maxLevels=32):
+        u"""
+        Поиск общего "родительского" элемента для указанного списка элементов
+        :param table: имя таблицы (или инстанс CTable), элементы которой надо обрабатывать
+        :param idList: список id элементов (или одно значение), для которых производится поиск "родительского" элемента
+        :param groupCol: имя поля, по которому осуществляется построение иерархии в базе данных
+        :param idCol: имя поля, на которое ссылается поле группировки и значения которого переданы в idList
+        :param searchTopCommonParent: флаг, указывающий необходимость искать не первый общей элемент-"родител", а самый
+        верхний, не имеющий "родителя"
+        :param maxLevels: максимальное количество обрабатываемых уровней иерархии
+        :return:
+        """
+        table = self.forceTable(table)
+
+        idCol = idCol if isinstance(idCol, CField) else table[idCol]
+
+        if not isinstance(idList, (list, set)):
+            idList = [idList]
+
+        idSet = set(idList)
+        while maxLevels > 0 and idSet:
+            oldIdSet = idSet
+            parentIdRecordList = QtGui.qApp.db.getRecordList(table, groupCol, idCol.inlist(idSet))
+            idSet = set([forceRef(record.value(0)) for record in parentIdRecordList])
+            # Если список уникальных родителей состоит из одного элемента
+            if len(idList) == 1:
+                # Если не надо искать верхнего родителя, то возвращаем найденного родителя
+                if not searchTopCommonParent:
+                    return idSet.pop()
+                # Иначе (если надо искать верхнего родителя), перебераем дальше до тех пор,
+                # пока не найдем один общий для всех элемент, но без родителя
+                elif None in idSet and len(oldIdSet) == 1:
+                    return oldIdSet.pop()
+
+        return None
+
+    def getTopParent(self, table, idList, groupCol='group_id', idCol='id', maxLevels=32):
+        u"""
+        Поиск общего корневого (топового, верхнего) "родительского" элемента для указанного списка элементов
+        :param table: имя таблицы (или инстанс CTable), элементы которой надо обрабатывать
+        :param idList: список id элементов (или одно значение), для которых производится поиск "родительского" элемента
+        :param groupCol: имя поля, по которому осуществляется построение иерархии в базе данных
+        :param idCol: имя поля, на которое ссылается поле группировки и значения которого переданы в idList
+        :param maxLevels: максимальное количество обрабатываемых уровней иерархии
+        :return:
+        """
+        return self.getCommonParent(table=table,
+                                    idList=idList,
+                                    groupCol=groupCol,
+                                    idCol=idCol,
+                                    searchTopCommonParent=True,
+                                    maxLevels=maxLevels)
+
+    def getAllRelated(self, table, idList, groupCol, idCol='id', maxLevels=32):
+        u"""
+        Поиск всех записей таблицы, связанных c указанными (с учетом как прямых, так и косвенных связей)
+        :param table: имя таблицы (или инстанс CTable), элементы которой надо обрабатывать
+        :param idList: список id элементов (или одно значение), для которых производится поиск "родительского" элемента
+        :param groupCol: имя поля, по которому осуществляется построение иерархии в базе данных
+        :param idCol: имя поля, на которое ссылается поле группировки и значения которого переданы в idList
+        :param maxLevels: максимальное количество обрабатываемых уровней иерархии
+        :return:
+        """
+        topParentId = self.getTopParent(table=table,
+                                        idList=idList,
+                                        groupCol=groupCol,
+                                        idCol=idCol,
+                                        maxLevels=maxLevels)
+        if not topParentId:
+            return idList if isinstance(idList, (list, set, tuple)) else [idList]
+
+        return self.getDescendants(table, groupCol, topParentId)
