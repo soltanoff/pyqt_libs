@@ -40,6 +40,16 @@ class CMySqlDatabase(CDatabase):
         self._func = None
         self._proc = None
 
+    def escapeFieldName(self, name):
+        u = unicode(name)
+        if u.startswith('`') and u.endswith('`'):
+            return u
+        else:
+            return '`' + u + '`'
+
+    escapeTableName = escapeFieldName
+    escapeSchemaName = escapeFieldName
+
     NULL = property(lambda self: CSqlExpression(self, 'NULL'))
     func = property(lambda self: self.loadFunctions()._func)
     proc = property(lambda self: self.loadFunctions()._proc)
@@ -54,3 +64,12 @@ class CMySqlDatabase(CDatabase):
     def getConnectionId(self):
         query = self.query('SELECT CONNECTION_ID();')
         return forceRef(query.record().value(0)) if query.first() else None
+
+    def prepareLimit(self, limit):
+        if isinstance(limit, (list, tuple)):
+            assert len(limit) == 2
+            return self.limit2 % limit
+        elif isinstance(limit, int):
+            return self.limit1 % limit
+        else:
+            return ''
