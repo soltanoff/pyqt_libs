@@ -63,7 +63,7 @@ class CDatabase(QObject):
     connected = pyqtSignal()
     disconnected = pyqtSignal()
 
-    def __init__(self, afterConnectFunc=None):
+    def __init__(self):
         QObject.__init__(self)
         self.deadLockRepeat = 3
         self.db = None
