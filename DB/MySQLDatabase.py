@@ -1,8 +1,11 @@
 # -*- coding: utf-8 -*-
+from PyQt4 import QtSql
+
 from DB.BaseDBRoutine import CDatabaseRoutine
 from DB.Database import CDatabase
 from DB.MySQLRoutine import CMySqlRoutineMap
 from DB.Tools import CSqlExpression
+from Utils.Exceptions import CDatabaseException
 from Utils.Forcing import forceRef
 
 
@@ -73,3 +76,24 @@ class CMySqlDatabase(CDatabase):
             return self.limit1 % limit
         else:
             return ''
+
+    def nestedTransaction(self):
+        QtSql.QSqlQuery(self.db).exec_('SAVEPOINT LEVEL_%d' % (self._openTransactionsCount + 1))
+        if self.db.lastError().isValid():
+            raise CDatabaseException(CDatabase.errTransactionError, self.db.lastError())
+
+    def nestedCommit(self):
+        QtSql.QSqlQuery(self.db).exec_('RELEASE SAVEPOINT LEVEL_%d' % self._openTransactionsCount)
+        if self.db.lastError().isValid():
+            raise CDatabaseException(CDatabase.errNestedCommitTransactionError, self.db.lastError())
+
+    def nestedRollback(self):
+        QtSql.QSqlQuery(self.db).exec_('ROLLBACK TO SAVEPOINT LEVEL_%d' % self._openTransactionsCount)
+        if self.db.lastError().isValid():
+            raise CDatabaseException(CDatabase.errNestedRollbackTransactionError, self.db.lastError())
+
+    def isConnectionLostError(self, sqlError):
+        if sqlError and sqlError.number() in [CMySqlDatabase.CR_SERVER_GONE_ERROR,
+                                              CMySqlDatabase.CR_SERVER_LOST]:
+            return True
+        return CDatabase.isConnectionLostError(self, sqlError)
