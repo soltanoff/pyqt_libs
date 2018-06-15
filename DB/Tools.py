@@ -32,6 +32,13 @@ def addCondLike(cond, field, val):
             cond.append(field.eq(val.strip()))
 
 
+def addDateInRange(cond, field, begDate, endDate):
+    if begDate and not begDate.isNull():
+        cond.append(field.ge(begDate))
+    if endDate and not endDate.isNull():
+        cond.append(field.lt(endDate.addDays(1)))
+
+
 def decorateString(s):
     u = unicode(s)
     return '\'' + u.replace('\\', '\\\\').replace('\'', '\\\'') + '\''
