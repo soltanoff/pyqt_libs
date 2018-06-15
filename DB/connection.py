@@ -2,7 +2,7 @@
 from DB.Database import CDatabase
 from DB.InterbaseDatabase import CInterbaseDatabase
 from DB.MySQLDatabase import CMySqlDatabase
-from DB.ODBSDatabase import CODBCDatabase
+from DB.ODBCDatabase import CODBCDatabase
 from Utils.Exceptions import CDatabaseException
 
 
