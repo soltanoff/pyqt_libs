@@ -6,13 +6,66 @@ from DB.ODBSDatabase import CODBCDatabase
 from Utils.Exceptions import CDatabaseException
 
 
-def connectDataBase(driverName, serverName, serverPort, databaseName, userName, password, connectionName=None, compressData=False, afterConnectFunc=None, **kwargs):
+def connectDataBase(
+        driverName,
+        serverName,
+        serverPort,
+        databaseName,
+        userName,
+        password,
+        connectionName=None,
+        compressData=False,
+        afterConnectFunc=None,
+        **kwargs
+):
     driverName = unicode(driverName).upper()
     if driverName == 'MYSQL':
-        return CMySqlDatabase(serverName, serverPort, databaseName, userName, password, connectionName, compressData=compressData, afterConnectFunc=afterConnectFunc, **kwargs)
+        return CMySqlDatabase(
+            serverName,
+            serverPort,
+            databaseName,
+            userName,
+            password,
+            connectionName,
+            compressData=compressData,
+            afterConnectFunc=afterConnectFunc,
+            **kwargs
+        )
     elif driverName in ['INTERBASE', 'FIREBIRD']:
-        return CInterbaseDatabase(serverName, serverPort, databaseName, userName, password, connectionName, afterConnectFunc=afterConnectFunc, **kwargs)
+        return CInterbaseDatabase(
+            serverName,
+            serverPort,
+            databaseName,
+            userName,
+            password,
+            connectionName,
+            afterConnectFunc=afterConnectFunc,
+            **kwargs
+        )
     elif driverName in ['ODBC']:
-        return CODBCDatabase(serverName, serverPort, databaseName, userName, password, connectionName, afterConnectFunc=afterConnectFunc, **kwargs)
+        return CODBCDatabase(
+            serverName,
+            serverPort,
+            databaseName,
+            userName,
+            password,
+            connectionName,
+            afterConnectFunc=afterConnectFunc,
+            **kwargs
+        )
     else:
         raise CDatabaseException(CDatabase.errUndefinedDriver % driverName)
+
+
+def connectDataBaseByInfo(connectionInfo):
+    return connectDataBase(
+        connectionInfo['driverName'],
+        connectionInfo['host'],
+        connectionInfo['port'],
+        connectionInfo['database'],
+        connectionInfo['user'],
+        connectionInfo['password'],
+        connectionInfo['connectionName'],
+        connectionInfo['compressData'],
+        connectionInfo.get('afterConnectFunc', None)
+    )
