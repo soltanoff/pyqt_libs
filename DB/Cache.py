@@ -7,7 +7,7 @@ from PyQt4.QtCore import QVariant
 
 class CRecordCache(object):
     def __init__(self, capacity=200, fakeValues=None):
-        if not fakeValues:
+        if fakeValues is None:
             fakeValues = []
         self.map = {}
         self.queue = []
