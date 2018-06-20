@@ -8,7 +8,7 @@ from Utils.Forcing import forceString
 
 class CDragDropTableModel(CTableModel):
     def __init__(self, parent, cols=None, tableName=''):
-        if not cols:
+        if cols is None:
             cols = []
         super(CDragDropTableModel, self).__init__(parent, cols, tableName)
 
