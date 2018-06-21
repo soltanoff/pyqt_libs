@@ -103,3 +103,17 @@ class CTableView(CExtendedTableView):
             self._actCopyCell.setEnabled(curentIndexIsValid)
         if self._actRecordProperties:
             self._actRecordProperties.setEnabled(curentIndexIsValid)
+
+    def setIdList(self, idList, itemId=None, realItemCount=None, **params):
+        if not itemId:
+            itemId = self.currentItemId()
+        if not idList:
+            selectionModel = self.selectionModel()
+            if selectionModel:
+                selectionModel.clear()
+        self.model().setIdList(idList, realItemCount, **params)
+        if idList:
+            self.setCurrentItemId(itemId)
+        if self.isSortingEnabled() and self.horizontalHeader().isSortIndicatorShown():
+            self.sortByColumn(self.horizontalHeader().sortIndicatorSection(),
+                              self.horizontalHeader().sortIndicatorOrder())
