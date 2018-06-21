@@ -132,3 +132,14 @@ class CTableView(CExtendedTableView):
         if index.isValid():
             return index.row()
         return None
+
+    def setCurrentItemId(self, itemId):
+        self.setCurrentRow(self.model().findItemIdIndex(itemId))
+
+    def currentItemId(self):
+        return self.itemId(self.currentIndex())
+
+    def currentItem(self):
+        itemId = self.currentItemId()
+        record = self.model().recordCache().get(itemId) if itemId else None
+        return record
