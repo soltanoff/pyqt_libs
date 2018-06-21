@@ -81,3 +81,25 @@ class CTableView(CExtendedTableView):
         self._actRecordProperties.setObjectName('actRecordProperties')
         self.connect(self._actRecordProperties, QtCore.SIGNAL('triggered()'), self.showRecordProperties)
         self.addPopupAction(self._actRecordProperties)
+
+    def setReportHeader(self, reportHeader):
+        self.__reportHeader = reportHeader
+
+    def reportHeader(self):
+        return self.__reportHeader
+
+    def setReportDescription(self, reportDescription):
+        self.__reportDescription = reportDescription
+
+    def reportDescription(self):
+        return self.__reportDescription
+
+    def popupMenuAboutToShow(self):
+        currentIndex = self.currentIndex()
+        curentIndexIsValid = currentIndex.isValid()
+        if self._actDeleteRow:
+            self._actDeleteRow.setEnabled(curentIndexIsValid and self.canRemoveRow(currentIndex.row()))
+        if self._actCopyCell:
+            self._actCopyCell.setEnabled(curentIndexIsValid)
+        if self._actRecordProperties:
+            self._actRecordProperties.setEnabled(curentIndexIsValid)
