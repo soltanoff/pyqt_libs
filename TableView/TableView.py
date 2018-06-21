@@ -121,10 +121,10 @@ class CTableView(CExtendedTableView):
     def setCurrentRow(self, row):
         rowCount = self.model().rowCount()
         if row >= rowCount:
-            row = rowCount-1
+            row = rowCount - 1
         if row >= 0:
             self.setCurrentIndex(self.model().index(row, 0))
-        elif rowCount>0:
+        elif rowCount > 0:
             self.setCurrentIndex(self.model().index(0, 0))
 
     def currentRow(self):
