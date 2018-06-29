@@ -161,7 +161,7 @@ class CTableView(CExtendedTableView):
         selectionModel = self.selectionModel()
         for row in rowList:
             index = model.index(row, 0)
-            selectionModel.select(index, QtGui.QItemSelectionModel.Select|QtGui.QItemSelectionModel.Rows)
+            selectionModel.select(index, QtGui.QItemSelectionModel.Select | QtGui.QItemSelectionModel.Rows)
 
     def setSelectedItemIdList(self, idList):
         self.setSelectedRowList((self.model().findItemIdIndex(itemId) for itemId in idList))
@@ -169,10 +169,10 @@ class CTableView(CExtendedTableView):
     def prepareCopy(self):
         cbfItemId = 'application/x-s11/itemid'
         currentItemId = self.currentItemId()
-        strData=self.model().table().tableName+':'
+        strData = self.model().table().tableName + ':'
         if currentItemId:
             strData += str(currentItemId)
-        return {cbfItemId:strData}
+        return {cbfItemId: strData}
 
     def copy(self):
         dataList = self.prepareCopy()
@@ -187,7 +187,7 @@ class CTableView(CExtendedTableView):
         if index.isValid():
             carrier = QMimeData()
             dataAsText = self.model().data(index, Qt.DisplayRole)
-            carrier.setText(dataAsText.toString() if dataAsText else '' )
+            carrier.setText(dataAsText.toString() if dataAsText else '')
             QtGui.qApp.clipboard().setMimeData(carrier)
 
     def itemId(self, index):
@@ -213,7 +213,7 @@ class CTableView(CExtendedTableView):
         else:
             super(CTableView, self).keyPressEvent(event)
 
-    def contextMenuEvent(self, event): # event: QContextMenuEvent
+    def contextMenuEvent(self, event):  # event: QContextMenuEvent
         if self._popupMenu:
             self._popupMenu.exec_(event.globalPos())
             event.accept()
@@ -233,6 +233,7 @@ class CTableView(CExtendedTableView):
                 row = self.currentIndex().row()
                 self.model().removeRow(row)
                 self.setCurrentRow(row)
+
         QtGui.qApp.call(self, removeCurrentRowInternal)
 
     def removeSelectedRows(self):
@@ -243,22 +244,26 @@ class CTableView(CExtendedTableView):
             rows = self.selectedRowList()
             rows.sort()
             for row in rows:
-                actualRow = row-deletedCount
+                actualRow = row - deletedCount
                 self.setCurrentRow(actualRow)
-                confirm = self.confirmRemoveRow(actualRow, len(rows)>1)
+                confirm = self.confirmRemoveRow(actualRow, len(rows) > 1)
                 if confirm is None:
-                    newSelection.extend(x-deletedCount for x in rows if x>row)
+                    newSelection.extend(x - deletedCount for x in rows if x > row)
                     break
                 if confirm:
                     self.model().removeRow(actualRow)
                     deletedCount += 1
-                    if currentRow>row:
-                        currentRow-=1
+                    if currentRow > row:
+                        currentRow -= 1
                 else:
                     newSelection.append(actualRow)
             if newSelection:
                 self.setSelectedRowList(newSelection)
             else:
                 self.setCurrentRow(currentRow)
+
         QtGui.qApp.call(self, removeSelectedRowsInternal)
 
+    @property
+    def object_name(self):
+        return '%s.%s' % (self.parent().objectName(), self.objectName())
