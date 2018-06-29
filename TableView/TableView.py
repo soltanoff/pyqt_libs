@@ -1,8 +1,10 @@
 # -*- coding: utf-8 -*-
 from PyQt4 import QtGui, QtCore
+from PyQt4.QtCore import QMimeData
 
 from ExtendedTableView import CExtendedTableView
 from TableModel.RichTextItemDelegate import CRichTextItemDelegate
+from Utils.Forcing import toVariant
 
 
 class CTableView(CExtendedTableView):
@@ -163,3 +165,19 @@ class CTableView(CExtendedTableView):
 
     def setSelectedItemIdList(self, idList):
         self.setSelectedRowList((self.model().findItemIdIndex(itemId) for itemId in idList))
+
+    def prepareCopy(self):
+        cbfItemId = 'application/x-s11/itemid'
+        currentItemId = self.currentItemId()
+        strData=self.model().table().tableName+':'
+        if currentItemId:
+            strData += str(currentItemId)
+        return {cbfItemId:strData}
+
+    def copy(self):
+        dataList = self.prepareCopy()
+        mimeData = QMimeData()
+        for dataFormat, data in dataList.iteritems():
+            v = toVariant(data)
+            mimeData.setData(dataFormat, v.toByteArray())
+        QtGui.qApp.clipboard().setMimeData(mimeData)
