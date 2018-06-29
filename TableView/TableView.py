@@ -267,3 +267,22 @@ class CTableView(CExtendedTableView):
     @property
     def object_name(self):
         return '%s.%s' % (self.parent().objectName(), self.objectName())
+
+    def getColumnNames(self):
+        return [self.model().headerData(idx, Qt.Horizontal).toString() for idx in xrange(self.model().columnCount())]
+
+    def getColumnSelection(self):
+        return [not self.isColumnHidden(idx) for idx in xrange(self.model().columnCount())]
+
+    def setColumnSelection(self, columnSelection):
+        for column, isVisible in enumerate(columnSelection):
+            self.setColumnHidden(column, not isVisible)
+
+    def setColumnSelectionEnabled(self, enabled):
+        hh = self.horizontalHeader()
+        if enabled:
+            hh.setContextMenuPolicy(QtCore.Qt.CustomContextMenu)
+            hh.customContextMenuRequested.connect(self.showColumnSelector)
+        else:
+            hh.setContextMenuPolicy(QtCore.Qt.NoContextMenu)
+            hh.customContextMenuRequested.connect(self.showColumnSelector)
