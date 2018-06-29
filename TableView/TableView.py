@@ -143,3 +143,23 @@ class CTableView(CExtendedTableView):
         itemId = self.currentItemId()
         record = self.model().recordCache().get(itemId) if itemId else None
         return record
+
+    def selectedRowList(self):
+        return list(set([index.row() for index in self.selectedIndexes()]))
+
+    def selectedElementsAsStringsList(self):
+        return list(set([(unicode(index.data().toString())) for index in self.selectedIndexes()]))
+
+    def selectedItemIdList(self):
+        itemIdList = self.model().idList()
+        return [itemIdList[row] for row in self.selectedRowList()]
+
+    def setSelectedRowList(self, rowList):
+        model = self.model()
+        selectionModel = self.selectionModel()
+        for row in rowList:
+            index = model.index(row, 0)
+            selectionModel.select(index, QtGui.QItemSelectionModel.Select|QtGui.QItemSelectionModel.Rows)
+
+    def setSelectedItemIdList(self, idList):
+        self.setSelectedRowList((self.model().findItemIdIndex(itemId) for itemId in idList))
