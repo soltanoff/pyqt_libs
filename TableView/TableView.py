@@ -182,6 +182,14 @@ class CTableView(CExtendedTableView):
             mimeData.setData(dataFormat, v.toByteArray())
         QtGui.qApp.clipboard().setMimeData(mimeData)
 
+    def copyCurrentCell(self):
+        index = self.currentIndex()
+        if index.isValid():
+            carrier = QMimeData()
+            dataAsText = self.model().data(index, Qt.DisplayRole)
+            carrier.setText(dataAsText.toString() if dataAsText else '' )
+            QtGui.qApp.clipboard().setMimeData(carrier)
+
     def itemId(self, index):
         if index.isValid():
             row = index.row()
@@ -253,3 +261,4 @@ class CTableView(CExtendedTableView):
             else:
                 self.setCurrentRow(currentRow)
         QtGui.qApp.call(self, removeSelectedRowsInternal)
+
