@@ -4,6 +4,7 @@ from PyQt4.QtCore import Qt, QMimeData
 
 from ExtendedTableView import CExtendedTableView
 from TableModel.RichTextItemDelegate import CRichTextItemDelegate
+from TableView.ColumnSelectionMenu import CTableColumnSelectionMenu
 from Utils.Forcing import toVariant
 
 
@@ -286,3 +287,9 @@ class CTableView(CExtendedTableView):
         else:
             hh.setContextMenuPolicy(QtCore.Qt.NoContextMenu)
             hh.customContextMenuRequested.connect(self.showColumnSelector)
+
+    def showColumnSelector(self, pos):
+        columnsSelector = CTableColumnSelectionMenu(self, self.getColumnNames(), self.getColumnSelection())
+        columnsSelector.selectionChanged.connect(self.setColumnHidden)
+        columnsSelector.exec_(self.mapToGlobal(pos))
+        columnsSelector.selectionChanged.disconnect(self.setColumnHidden)
