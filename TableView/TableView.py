@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 from PyQt4 import QtGui, QtCore
-from PyQt4.QtCore import QMimeData
+from PyQt4.QtCore import Qt, QMimeData
 
 from ExtendedTableView import CExtendedTableView
 from TableModel.RichTextItemDelegate import CRichTextItemDelegate
@@ -181,3 +181,33 @@ class CTableView(CExtendedTableView):
             v = toVariant(data)
             mimeData.setData(dataFormat, v.toByteArray())
         QtGui.qApp.clipboard().setMimeData(mimeData)
+
+    def itemId(self, index):
+        if index.isValid():
+            row = index.row()
+            itemIdList = self.model().idList()
+            if row in xrange(len(itemIdList)):
+                return itemIdList[row]
+        return None
+
+    def keyPressEvent(self, event):
+        key = event.key()
+        if key == Qt.Key_Escape:
+            event.ignore()
+        elif key == Qt.Key_Return or key == Qt.Key_Enter:
+            event.ignore()
+        elif key == Qt.Key_Space:
+            event.accept()
+            self.emit(QtCore.SIGNAL('hide()'))
+        elif event == QtGui.QKeySequence.Copy:
+            event.accept()
+            self.copy()
+        else:
+            super(CTableView, self).keyPressEvent(event)
+
+    def contextMenuEvent(self, event): # event: QContextMenuEvent
+        if self._popupMenu:
+            self._popupMenu.exec_(event.globalPos())
+            event.accept()
+        else:
+            event.ignore()
