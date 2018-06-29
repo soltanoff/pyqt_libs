@@ -211,3 +211,45 @@ class CTableView(CExtendedTableView):
             event.accept()
         else:
             event.ignore()
+
+    def canRemoveRow(self, row):
+        return self.model().canRemoveRow(row)
+
+    def confirmRemoveRow(self, row, multiple=False):
+        return self.model().confirmRemoveRow(self, row, multiple)
+
+    def removeCurrentRow(self):
+        def removeCurrentRowInternal():
+            index = self.currentIndex()
+            if index.isValid() and self.confirmRemoveRow(self.currentIndex().row()):
+                row = self.currentIndex().row()
+                self.model().removeRow(row)
+                self.setCurrentRow(row)
+        QtGui.qApp.call(self, removeCurrentRowInternal)
+
+    def removeSelectedRows(self):
+        def removeSelectedRowsInternal():
+            currentRow = self.currentIndex().row()
+            newSelection = []
+            deletedCount = 0
+            rows = self.selectedRowList()
+            rows.sort()
+            for row in rows:
+                actualRow = row-deletedCount
+                self.setCurrentRow(actualRow)
+                confirm = self.confirmRemoveRow(actualRow, len(rows)>1)
+                if confirm is None:
+                    newSelection.extend(x-deletedCount for x in rows if x>row)
+                    break
+                if confirm:
+                    self.model().removeRow(actualRow)
+                    deletedCount += 1
+                    if currentRow>row:
+                        currentRow-=1
+                else:
+                    newSelection.append(actualRow)
+            if newSelection:
+                self.setSelectedRowList(newSelection)
+            else:
+                self.setCurrentRow(currentRow)
+        QtGui.qApp.call(self, removeSelectedRowsInternal)
