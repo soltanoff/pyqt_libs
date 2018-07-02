@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
-from TreeModel.Node import Node
-from TreeModel.tools import buildTree
+from Types.Node import Node
+from Types.tools import buildTree
 
 
 class Tree(object):
