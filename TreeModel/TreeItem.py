@@ -57,7 +57,7 @@ class CTreeItem(object):
 
     def loadChildren(self):
         u""" :rtype: list[CTreeItem] """
-        assert False, 'pure virtual call'
+        raise NotImplementedError
 
     def findItem(self, predicat):
         if predicat(self):
