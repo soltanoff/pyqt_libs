@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-from TreeModel.TreeItem import CTreeItem
+from DisplayTree.TreeModel.TreeItem import CTreeItem
 
 
 class CTreeItemWithId(CTreeItem):
