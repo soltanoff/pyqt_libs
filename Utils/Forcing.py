@@ -216,7 +216,7 @@ def getFirstLexeme(sourceString):
     for symbol in sourceString:
         # если тип очередного символа строки отличается от типа первого символа
         if symbol.isdigit() ^ isDigit:
-            break #прервать формирование токена
+            break  # прервать формирование токена
         lexeme += symbol
     return lexeme, isDigit, sourceString[len(lexeme):]
 
@@ -232,28 +232,42 @@ def naturalStringCompare(leftString, rightString):
              положительное, если leftString > rightString
     """
     leftString, rightString = forceString(leftString), forceString(rightString)
-    
+
     if leftString == rightString:
         return 0
-    
+
     while True:
         leftLexeme, leftIsDigit, leftString = getFirstLexeme(leftString)
         rightLexeme, rightIsDigit, rightString = getFirstLexeme(rightString)
 
-        
         if leftIsDigit != rightIsDigit or not (leftLexeme and rightLexeme):
             return cmp(leftLexeme, rightLexeme)
-        
+
         # сравниваем блоки, как числа, если они состоят из чисел, иначе, как строки
         partCompareResult = cmp(forceInt(leftLexeme), forceInt(rightLexeme)) \
-                            if leftIsDigit \
-                            else cmp(leftLexeme, rightLexeme)
-        
+            if leftIsDigit \
+            else cmp(leftLexeme, rightLexeme)
+
         # если лексемы не равны, то считаем, что нашли результат, иначе пляшем дальше
         if partCompareResult:
             return partCompareResult
-        
-            
-        return dateTime.toPyDateTime()
+
+        return datetime.datetime.now()
     else:
         return datetime.datetime(datetime.MINYEAR, 1, 1)
+
+
+def forcePyType(val):
+    t = val.type()
+    if t == QVariant.Bool:
+        return val.toBool()
+    elif t == QVariant.Date:
+        return val.toDate()
+    elif t == QVariant.DateTime:
+        return val.toDateTime()
+    elif t == QVariant.Double:
+        return val.toDouble()[0]
+    elif t == QVariant.Int:
+        return val.toInt()[0]
+    else:
+        return unicode(val.toString())
