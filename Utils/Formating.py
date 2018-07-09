@@ -1,4 +1,5 @@
 # -*- coding: utf-8 -*-
+import re
 from PyQt4.QtCore import *
 
 from Utils.Forcing import forceString, forceStringEx, forceInt
@@ -21,6 +22,10 @@ def nameCase(text):
             up = True
             result += symbol
     return result
+
+
+def isNameValid(name):
+    return not re.search(r'''[0-9a-zA-Z`~!@#$%^&*_=+\\|{}[\];:"<>?/().,]''', forceStringEx(name))
 
 
 def formatDate(val, toString=True):
