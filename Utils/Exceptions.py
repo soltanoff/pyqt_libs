@@ -23,36 +23,22 @@ class CRarException(CException):
 
     def getWindowTitle(self):
         return self._windowTitle
-
-    def __unicode__(self):
-        return self.message
+ 
 
 class CSoapException(CException):
     def __init__(self, message):
         CException.__init__(self, message)
-
-    def __unicode__(self):
-        return self.message
 
 
 class CDbfImportException(CException):
     def __init__(self, message=''):
         CException.__init__(self, message)
 
-    def __unicode__(self):
-        return self.message
-
 
 class CSynchronizeAttachException(CException):
     def __init__(self, message):
         CException.__init__(self, message)
-        self.umessage = message
-
-    def __str__(self):
-        return self.umessage
-
-    def __unicode__(self):
-        return self.umessage
+        self.message = message
 
 
 class CDatabaseException(CException):
@@ -64,8 +50,4 @@ class CDatabaseException(CException):
         if sqlError:
             message = message + '\n' + unicode(sqlError.driverText()) + '\n' + unicode(sqlError.databaseText())
         CException.__init__(self, message)
-        self.sqlError = sqlError
-        
-    def __unicode__(self):
-        return self.umessage
-    
+        self.sqlError = sqlError 
