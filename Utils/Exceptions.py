@@ -65,3 +65,7 @@ class CDatabaseException(CException):
             message = message + '\n' + unicode(sqlError.driverText()) + '\n' + unicode(sqlError.databaseText())
         CException.__init__(self, message)
         self.sqlError = sqlError
+        
+    def __unicode__(self):
+        return self.umessage
+    
