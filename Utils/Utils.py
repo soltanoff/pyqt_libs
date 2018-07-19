@@ -69,10 +69,6 @@ def compareCallStack(leftStack, rightStack, excludeLastCallFunctionName=None):
         leftStack, rightStack = rightStack, leftStack
         inheritanceDirection = -1
 
-    # В сборке имя вызываемой функции всегда NoneType
-    #    if (excludeLastCallFunctionName
-    #        and leftStack
-    #        and excludeLastCallFunctionName in leftStack[-1][calleesIdx]):
     if excludeLastCallFunctionName:
         leftStackLength -= 1
 
@@ -86,9 +82,7 @@ def compareCallStack(leftStack, rightStack, excludeLastCallFunctionName=None):
         else:
             break
 
-    isInherit = inheritanceDirection * (1 if fullEqualityNumber in [leftStackLength,  # та же функция
-                                                                    leftStackLength - 1]  # вложенная функция\
-                                        else 0)
+    isInherit = inheritanceDirection * (1 if fullEqualityNumber in [leftStackLength, leftStackLength - 1] else 0)
 
     return (fullEqualityNumber, isInherit)
 

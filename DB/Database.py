@@ -1,4 +1,5 @@
 # -*- coding: utf-8 -*-
+import itertools
 import traceback
 
 from PyQt4 import QtGui, QtSql
@@ -8,8 +9,9 @@ from PyQt4.QtGui import QMessageBox
 from DB.Field import CField
 from DB.Table import CTable
 from DB.Tools import decorateString, CSqlExpression, CSubQueryTable, CJoin, CUnionTable
+from Utils.Debug import printQueryTime
 from Utils.Exceptions import CDatabaseException, CException
-from Utils.Forcing import toVariant, forceString
+from Utils.Forcing import toVariant, forceString, forceRef
 from Utils.Utils import compareCallStack
 
 
@@ -61,7 +63,7 @@ class CDatabase(QObject):
     connected = pyqtSignal()
     disconnected = pyqtSignal()
 
-    def __init__(self, afterConnectFunc=None):
+    def __init__(self):
         QObject.__init__(self)
         self.deadLockRepeat = 3
         self.db = None
@@ -384,7 +386,8 @@ class CDatabase(QObject):
         return self.forceField(date).eq(self.valueField('0000-00-00'))
 
     def isNullDate(self, date):
-        return self.joinOr([self.forceField(date).isNull(), self.isZeroDate(date)])
+        return self.joinOr([self.forceField(date).isNull(),
+                            self.isZeroDate(date)])
 
     def sum(self, item):
         return CSqlExpression(
@@ -457,16 +460,11 @@ class CDatabase(QObject):
     def dateTimeIntersection(cls, fieldBegDateTime, fieldEndDateTime, begDateTime, endDateTime):
         if fieldBegDateTime is not None and fieldEndDateTime is not None and begDateTime is not None and endDateTime is not None:
             return cls.joinAnd([
-                cls.joinOr([
-                    fieldBegDateTime.datetimeGe(begDateTime),
-                    fieldEndDateTime.datetimeGe(begDateTime),
-                    fieldEndDateTime.isNull()
-                ]),
-                cls.joinOr([
-                    fieldBegDateTime.datetimeLe(endDateTime),
-                    fieldEndDateTime.datetimeLe(endDateTime),
-                    fieldBegDateTime.isNull()
-                ])
+                cls.joinOr([fieldBegDateTime.datetimeGe(begDateTime), fieldEndDateTime.datetimeGe(begDateTime),
+                            fieldEndDateTime.isNull()]),
+                # FIXME: fieldBegDateTime.isNull() у нас такого быть не может, но логически правильно. Возможно, в целях оптимизации, можно и вырезать
+                cls.joinOr([fieldBegDateTime.datetimeLe(endDateTime), fieldEndDateTime.datetimeLe(endDateTime),
+                            fieldBegDateTime.isNull()])
             ])
         else:
             return ''
@@ -491,8 +489,7 @@ class CDatabase(QObject):
     def prepareGroup(cls, groupFields):
         if isinstance(groupFields, (list, tuple)):
             groupFields = ', '.join(
-                [groupField.name() if isinstance(groupField, CField) else groupField for groupField in groupFields]
-            )
+                [groupField.name() if isinstance(groupField, CField) else groupField for groupField in groupFields])
         if groupFields:
             return ' GROUP BY ' + (groupFields.name() if isinstance(groupFields, CField) else groupFields)
         else:
@@ -512,7 +509,6 @@ class CDatabase(QObject):
     @classmethod
     def prepareLimit(cls, limit):
         raise NotImplementedError
-
 
     def selectStmt(
             self,
@@ -563,11 +559,6 @@ class CDatabase(QObject):
         return None
 
     def existsStmt(self, table, where, limit=None):
-        u"""
-        Метод обарачивающий абстракцию подзапроса `EXISTS(...)` в python-код.
-        :type fields: CField or list of CField
-        :rtype: QtSql.QSqlRecord
-        """
         field = '*'
         if isinstance(table, CJoin):
             mainTable = table.getMainTable()
@@ -577,11 +568,6 @@ class CDatabase(QObject):
         return 'EXISTS (%s)' % self.selectStmt(table, field, where, limit=limit)
 
     def notExistsStmt(self, table, where):
-        u"""
-        Метод обарачивающий абстракцию подзапроса `NOT EXISTS(...)` в python-код.
-        :type fields: CField or list of CField
-        :rtype: QtSql.QSqlRecord
-        """
         return 'NOT %s' % self.existsStmt(table, where)
 
     def _decreaseOpenTransactionCount(self):
@@ -593,8 +579,8 @@ class CDatabase(QObject):
 
     def nestedTransaction(self):
         formatedPrevTransactionStack = '\n'.join(
-            traceback.format_list(self._transactionCallStackByLevel[self._openTransactionsCount - 1]))
-        # self.decreaseTransactionLevel()
+            traceback.format_list(self._transactionCallStackByLevel[self._openTransactionsCount - 1])
+        )
         raise CException('\n'.join([self.errNestedTransactionCall,
                                     self.errPreviousTransactionCallStack % formatedPrevTransactionStack]))
 
@@ -663,3 +649,642 @@ class CDatabase(QObject):
             self.nestedRollback()
 
         self._decreaseOpenTransactionCount()
+
+    def table(self, tableName, idFieldName='id'):
+        if self.tables.has_key(tableName):
+            return self.tables[tableName]
+        else:
+            table = CTable(tableName, self)
+            if u'id' in [v.fieldName for v in table.fields]:
+                table.setIdFieldName(idFieldName)
+            self.tables[tableName] = table
+            return table
+
+    def join(self, firstTable, secondTable, onCond, stmt='JOIN'):
+        if isinstance(onCond, (list, tuple)):
+            onCond = self.joinAnd(onCond)
+        return CJoin(self.forceTable(firstTable), self.forceTable(secondTable), onCond, stmt)
+
+    def leftJoin(self, firstTable, secondTable, onCond):
+        return self.join(firstTable, secondTable, onCond, 'LEFT JOIN')
+
+    def innerJoin(self, firstTable, secondTable, onCond):
+        return self.join(firstTable, secondTable, onCond, 'INNER JOIN')
+
+    def record(self, tableName):
+        self.checkdb()
+        if tableName.strip().lower().startswith('select'):
+            res = self.query(tableName + self.prepareLimit(1)).record()
+        else:
+            parts = tableName.split('.', 1)
+            if len(parts) <= 1:
+                res = self.db.record(tableName)
+                if not res:  # проверка соединения и повторная попытка в случае потери подключения
+                    self.checkConnect()
+                    res = self.db.record(tableName)
+            else:
+                currentDatabaseName = self.db.databaseName()
+                databaseName = parts[0]
+                # проверка подключения производится внутри query
+                self.query('USE %s' % self.escapeSchemaName(databaseName))
+                res = self.db.record(parts[1])
+                self.query('USE %s' % self.escapeSchemaName(currentDatabaseName))
+
+        if res.isEmpty():
+            raise CDatabaseException(CDatabase.errTableNotFound % tableName)
+        return res
+
+    def recordFromDict(self, tableName, dct):
+        table = self.forceTable(tableName)
+        rec = table.newRecord(fields=dct.keys())
+        for fieldName, value in dct.iteritems():
+            rec.setValue(fieldName, toVariant(value))
+        return rec
+
+    def insertFromDict(self, tableName, dct):
+        return self.insertRecord(tableName, self.recordFromDict(tableName, dct))
+
+    def insertMultipleFromDict(self, tableName, lst):
+        for dct in lst:
+            self.insertRecord(tableName, self.recordFromDict(tableName, dct))
+
+    @printQueryTime(callStack=True, printQueryFirst=True)
+    def query(self, stmt, quietReconnect=False):
+        # TODO: Обнаружено интересное поведение при отказе от восстановления разорванного соединения:
+        # Все query, ожидающие восстановления узнают, что соединение закрыто и checkdb захламляет error.log.
+        self.checkdb()
+        result = QtSql.QSqlQuery(self.db)
+        result.setForwardOnly(True)
+        result.setNumericalPrecisionPolicy(QtSql.QSql.LowPrecisionDouble)
+        repeatCounter = 0
+        needRepeat = True
+        while needRepeat:
+            needRepeat = False
+            if not result.exec_(stmt):
+                lastError = result.lastError()
+                if lastError.databaseText().contains(self.returnedDeadlockErrorText):
+                    needRepeat = repeatCounter <= self.deadLockRepeat
+                elif self.isConnectionLostError(lastError):
+                    if self.restoreConnection(quietReconnect or self.restoreConnectState == 1):
+                        needRepeat = True
+                    else:
+                        self.connectDown()
+                else:
+                    needRepeat = False
+                    self.onError(stmt, lastError)
+            repeatCounter += 1
+        return result
+
+    def onError(self, stmt, sqlError):
+        raise CDatabaseException(stmt + u'\n' + CDatabase.errQueryError % stmt, sqlError)
+
+    @staticmethod
+    def checkDatabaseError(lastError, stmt=None):
+        if lastError.isValid() and lastError.type() != QtSql.QSqlError.NoError:
+            message = u'Неизвестная ошибка базы данных'
+            if lastError.type() == QtSql.QSqlError.ConnectionError:
+                message = u'Ошибка подключения к базе данных'
+            elif lastError.type() == QtSql.QSqlError.StatementError:
+                message = u'Ошибка SQL-запроса'
+            elif lastError.type() == QtSql.QSqlError.TransactionError:
+                message = u'Ошибка SQL-запроса'
+            if stmt:
+                message += u'\n(%s)\n' % stmt
+            raise CDatabaseException(message, lastError)
+
+    def getRecordEx(self, table=None, cols=None, where='', order='', stmt=None):
+        if stmt is None:
+            stmt = self.selectStmt(table, cols, where, order=order, limit=1)
+        query = self.query(stmt)
+        if query.first():
+            record = query.record()
+            return record
+        else:
+            return None
+
+    def getRecord(self, table, cols, itemId):
+        idCol = self.mainTable(table).idField()
+        return self.getRecordEx(table, cols, idCol.eq(itemId))
+
+    def updateRecord(self, table, record):
+        """
+        Производит обновление записи record  в таблице table
+        :param table: CTable, CJoin, CUnionTable, CSubQueryTable или строка
+        :param record:
+        :return:
+        None если не обновил
+        """
+        table = self.forceTable(table)
+        table.beforeUpdate(record)
+        fieldsCount = record.count()
+        idFieldName = table.idFieldName()
+        values = []
+        cond = ''
+        itemId = None
+        for i in range(fieldsCount):
+
+            # My insertion for 'rbImageMap' table
+            if table.name() == 'rbImageMap':
+                pair = self.escapeFieldName(record.fieldName(i)) + '=' + self.formatValue(record.field(i))
+                if record.fieldName(i) == idFieldName:
+                    cond = pair
+                    itemId = record.value(i).toInt()[0]
+                elif record.fieldName(i) == 'image':
+                    pass
+                else:
+                    values.append(pair)
+            else:
+                pair = self.escapeFieldName(record.fieldName(i)) + '=' + self.formatValue(record.field(i))
+                if record.fieldName(i) == idFieldName:
+                    cond = pair
+                    itemId = record.value(i).toInt()[0]
+                else:
+                    values.append(pair)
+        stmt = 'UPDATE ' + table.name() + ' SET ' + (', '.join(values)) + ' WHERE ' + cond
+        self.query(stmt)
+        return itemId
+
+    def insertRecord(self, table, record):
+        table = self.forceTable(table)
+        table.beforeInsert(record)
+        fieldsCount = record.count()
+        fields = []
+        values = []
+        for i in xrange(fieldsCount):
+            if not record.value(i).isNull():
+                fields.append(self.escapeFieldName(record.fieldName(i)))
+                values.append(self.formatValue(record.field(i)))
+        stmt = ('INSERT INTO ' + table.name() +
+                '(' + (', '.join(fields)) + ') ' +
+                'VALUES (' + (', '.join(values)) + ')')
+        itemId = self.query(stmt).lastInsertId().toInt()[0]
+        idFieldName = table.idFieldName()
+        record.setValue(idFieldName, QVariant(itemId))
+        return itemId
+
+    def insertMultipleRecords(self, table, records):
+        if len(records) == 0: return
+        table = self.forceTable(table)
+        fields = []
+        values = []
+        for i in xrange(len(records)):
+            tfields = []
+            tvalues = []
+            for j in xrange(records[i].count()):
+                tfields.append(self.escapeFieldName(records[i].fieldName(j)))
+                tvalues.append(self.formatValue(records[i].field(j)))
+            fields.append(tfields)
+            values.append(tvalues)
+        stmt = (u'INSERT INTO ' + table.name() + (u'(' + u', '.join(fields[0])) + u') VALUES')
+        for value in values:
+            stmt += (u'(' + u', '.join(value) + u'),')
+        stmt = stmt[:len(stmt) - 1]
+        self.query(stmt)
+
+    def insertMultipleRecordsByChunks(self, table, records, chunkSize=None):
+        if len(records) == 0: return
+        if chunkSize is None: chunkSize = len(records)
+        table = self.forceTable(table)
+        firstRecord = records[0]
+        fields = [self.escapeFieldName(firstRecord.fieldName(i)) for i in xrange(firstRecord.count())]
+        stmtInsert = u'INSERT INTO ' + table.name() + (u'(' + u', '.join(fields)) + u') VALUES '
+        recordsIterator = iter(records)
+        for _ in xrange(len(records) / chunkSize + 1):
+            values = []
+            for record in itertools.islice(recordsIterator, 0, chunkSize):
+                values.append([self.formatValue(record.field(i)) for i in xrange(record.count())])
+            if values:
+                rows = [u'(' + u', '.join(value) + u')' for value in values]
+                stmt = stmtInsert + ','.join(rows)
+                self.query(stmt)
+
+    def prepareInsertInto(self, table, fields):
+        table = self.forceTable(table)
+        return u'INSERT INTO {tableName} ({fields})'.format(
+            tableName=table.name(),
+            fields=u','.join(map(self.escapeFieldName, fields))
+        )
+
+    def prepareOnDuplicateKeyUpdate(self, fields, updateFields=None, keepOldFields=None):
+        u"""
+        Формирование условий обновления полей в INSERT INTO-запросе
+        :param fields: все затрагиваемые поля
+        :type fields: list
+        :param updateFields: список обновляемых полей (если не задано - все, кроме неизменяемых)
+        :type updateFields: list
+        :param keepOldFields: список полей, значения которых не изменяются в результате запроса
+        :type keepOldFields: list
+        :rtype: unicode
+        """
+        updateMap = {}
+        if keepOldFields is not None:
+            if updateFields is None:
+                updateFields = list(set(fields).difference(set(keepOldFields)))
+            else:
+                for field in keepOldFields:
+                    updateMap[field] = u'{field}={field}'.format(field=self.escapeFieldName(field))
+        if updateFields is not None:
+            for field in updateFields:
+                updateMap[field] = u'{field}=VALUES({field})'.format(field=self.escapeFieldName(field))
+
+        if updateMap:
+            return u'ON DUPLICATE KEY UPDATE {0}'.format(u','.join(updateMap.itervalues()))
+
+        return u''
+
+    def insertValues(self, table, fields, values=None, keepOldFields=None, updateFields=None):
+        u""" Множественная вставка в таблицу / обновление
+        :param table: Имя таблицы
+        :param fields:  Поля, затрагиваемые при обновлении/вставки
+        :param values: [list of tuple]: Список значениё полей
+        :param keepOldFields: Сохраняемые поля
+        :param updateFields: Обновляемые поля
+        :rtype: int | None """
+        if not (fields and values): return
+
+        parts = [
+            self.prepareInsertInto(table, fields),
+            u'VALUES {0}'.format(u','.join(u'(%s)' % u','.join(map(self.formatArg, v)) for v in values)),
+            self.prepareOnDuplicateKeyUpdate(fields, updateFields, keepOldFields)
+        ]
+        query = self.query(u' '.join(parts))
+        lastInsertId = query.lastInsertId().toInt()[0]
+        return lastInsertId
+
+    def insertItem(self, table, dct, fields=None, keepOldFields=None, updateFields=None):
+        u""" Вставка (обновление) записи
+        :type table: CTable | str
+        :type dct: dict
+        :param fields: список полей записи
+        :param keepOldFields: необновляемые поля
+        :param updateFields: обновляемые поля """
+        if not fields:
+            fields = dct.keys()
+        values = [tuple(dct.get(field) for field in fields)]
+        return self.insertValues(table, fields, values, keepOldFields=keepOldFields, updateFields=updateFields)
+
+    def insertFromDictList(self, table, dctList, fields=None, keepOldFields=None, updateFields=None, chunkSize=None):
+        u"""
+        Множественная вставка в таблицу / обновление из спика словарей
+        :param table: Имя таблицы
+        :param dctList: [list of dict]: [ .., { .., 'fieldName': value, .. }, .. ]
+        :param fields: Все затрагиваемые поля таблицы (если не задано, берутся из первого словаря)
+        :param keepOldFields: Сохраняемые поля
+        :param updateFields: Обновляемые поля
+        :param chunkSize: Разбиение запроса на группы по chunkSize
+        """
+        if not dctList: return
+        if not fields:
+            fields = dctList[0].keys()
+        if not chunkSize:
+            chunkSize = len(dctList)
+
+        listIterator = iter(dctList)
+        for _ in xrange(0, len(dctList), chunkSize):
+            values = [
+                tuple(dct.get(field) for field in fields)
+                for dct in itertools.islice(listIterator, 0, chunkSize)
+            ]
+            self.insertValues(table, fields, values, keepOldFields=keepOldFields, updateFields=updateFields)
+
+    def insertOrUpdate(self, table, record):
+        table = self.forceTable(table)
+        idFieldName = table.idFieldName()
+        if record.isNull(idFieldName):
+            return self.insertRecord(table, record)
+        else:
+            return self.updateRecord(table, record)
+
+    def deleteRecord(self, table, where):
+        table = self.forceTable(table)
+        stmt = 'DELETE FROM  ' + table.name() + self.prepareWhere(where)
+        self.query(stmt)
+
+    def markRecordsDeleted(self, table, where):
+        table = self.forceTable(table)
+        stmt = 'UPDATE  ' + table.name() + ' SET deleted=1 '
+        if isinstance(where, tuple):
+            where = list(where)
+        if isinstance(where, list):
+            where.append('deleted = 0')
+        else:
+            where = '(' + where + ') AND deleted = 0'
+        stmt += self.prepareWhere(where)
+        self.query(stmt)
+
+    def updateRecords(self, table, expr, where=None):
+        recQuery = None
+        if table and expr:
+            table = self.forceTable(table)
+            if isinstance(expr, QtSql.QSqlRecord):
+                tmpRecord = QtSql.QSqlRecord(expr)
+                sets = []
+            else:
+                tmpRecord = QtSql.QSqlRecord()
+                sets = []
+                if not isinstance(expr, (list, tuple)):
+                    sets = [expr]
+                else:
+                    sets.extend(expr)
+            table.beforeUpdate(tmpRecord)
+            for i in xrange(tmpRecord.count()):
+                sets.append(table[tmpRecord.fieldName(i)].eq(tmpRecord.value(i)))
+            stmt = 'UPDATE ' + table.name() + ' SET ' + ', '.join(sets) + self.prepareWhere(where)
+            recQuery = self.query(stmt)
+        return recQuery
+
+    def getSum(self, table, sumCol='*', where=''):
+        stmt = self.selectStmt(table, 'SUM(%s)' % sumCol, where)
+        query = self.query(stmt)
+        if query.first():
+            return query.value(0)
+        else:
+            return 0
+
+    def getCount(self, table=None, countCol='1', where='', stmt=None):
+        if stmt is None:
+            stmt = self.selectStmt(table, 'COUNT(%s)' % countCol, where)
+        query = self.query(stmt)
+        if query.first():
+            return query.value(0).toInt()[0]
+        else:
+            return 0
+
+    def getDistinctCount(self, table, countCol='*', where=''):
+        stmt = self.selectStmt(table, 'COUNT(DISTINCT %s)' % countCol, where)
+        query = self.query(stmt)
+        if query.first():
+            return query.value(0).toInt()[0]
+        else:
+            return 0
+
+    def getColumnValues(self, table, column='id', where='', order='', limit=None, isDistinct=False,
+                        handler=forceString):
+        stmt = self.selectStmt(table, column, where, order=order, limit=limit, isDistinct=isDistinct)
+        query = self.query(stmt)
+        result = []
+        while query.next():
+            result.append(handler(query.value(0)))
+        return result
+
+    def getColumnValueMap(self, table, keyColumn='', valueColumn='', where='', order='', limit=None, isDistinct=False,
+                          keyHandler=forceRef, valueHandler=forceRef):
+        stmt = self.selectStmt(table, [keyColumn, valueColumn], where, order=order, limit=limit, isDistinct=isDistinct)
+        query = self.query(stmt)
+        result = {}
+        while query.next():
+            result[keyHandler(query.value(0))] = valueHandler(query.value(1))
+        return result
+
+    def getIdList(self, table=None, idCol='id', where='', order='', limit=None, stmt=None):
+        u""" :rtype: list[int] """
+        return list(self.iterIdList(table, idCol, where, order, limit, stmt))
+
+    def iterIdList(self, table=None, idCol='id', where='', order='', limit=None, stmt=None):
+        if stmt is None:
+            stmt = self.selectStmt(table, idCol, where, order=order, limit=limit)
+        query = self.query(stmt)
+        while query.next():
+            yield query.value(0).toInt()[0]
+
+    def getDistinctIdList(self, table, idCol='id', where='', order='', limit=None):
+        """
+        Конструирует запрос по переданным аргументам к указанно таблице table
+        Выполняет его и из результата в result кладёт только Table.id указанный в idCol
+        Исключает повторы сторок в резальтате запроса
+        :param table: таблица к которой производится запрос
+        :param idCol: имя столббца который рассматривается как id
+        :param where: условия выборки записей
+        :param order: порядок сортироваки
+        :param limit: лимит записей в выборке
+        :return:
+        table.idCol list
+        """
+        stmt = self.selectStmt(table, idCol, where, order=order, limit=limit, isDistinct=True)
+        query = self.query(stmt)
+        result = []
+        while query.next():
+            result.append(query.value(0).toInt()[0])
+        return result
+
+    def getRecordList(
+            self,
+            table=None,
+            cols='*',
+            where='',
+            order='',
+            isDistinct=False,
+            limit=None,
+            rowNumberFieldName=None,
+            group='',
+            having='',
+            stmt=None
+    ):
+        return list(self.iterRecordList(
+            table, cols, where, order, isDistinct, limit, rowNumberFieldName, group, having, stmt
+        ))
+
+    def iterRecordList(
+            self,
+            table=None,
+            cols='*',
+            where='',
+            order='',
+            isDistinct=False,
+            limit=None,
+            rowNumberFieldName=None,
+            group='',
+            having='',
+            stmt=None
+    ):
+        u"""
+        :param rowNumberFieldName: псевдоним столбца, в который будет выводится номер строки (если имя задано).
+        :rtype: collections.Iterable[QtSql.QSqlRecord] """
+        if stmt is None:
+            stmt = self.selectStmt(
+                table,
+                cols,
+                where,
+                group=group,
+                order=order,
+                isDistinct=isDistinct,
+                limit=limit,
+                rowNumberFieldName=rowNumberFieldName,
+                having=having
+            )
+        query = self.query(stmt)
+        while query.next():
+            yield query.record()
+
+    def getRecordListGroupBy(self, table, cols='*', where='', group='', order=''):
+        stmt = self.selectStmt(table, cols, where, group=group, order=order)
+        res = []
+        query = self.query(stmt)
+        while query.next():
+            res.append(query.record())
+        return res
+
+    def translate(self, table, keyCol, keyVal, valCol, idFieldName='id', order=''):
+        u"""
+        Возвращает значение поля для записи, соответствующей ключу.
+        Ищет в таблице table запись, у которой значение ключевого поля keyCol равно ключу keyVal и возвращает
+        значение поля valCol этой записи.
+
+        :param table: таблица для поиска
+        :param keyCol: ключевое поле (столбец)
+        :param keyVal: значение ключа поиска для ключевого поля/столбца
+        :param valCol: поле, значение которого необходимо вернуть из найденой записи
+        :param order: сортировка
+        :param idFieldName: наименование primary key
+        :return: значение поля valCol для найденной по ключу записи таблицы table
+        """
+        if keyCol == 'id' and keyVal is None: return None
+
+        table = self.forceTable(table, idFieldName)
+        if not isinstance(keyCol, CField): keyCol = table[keyCol]
+
+        cond = [keyCol.eq(keyVal)]
+        if isinstance(table, CTable) and table.hasField('deleted'): cond.append(table['deleted'].eq(0))
+
+        record = self.getRecordEx(table, valCol, cond, order)
+        if record:
+            return record.value(0)
+        else:
+            return None
+
+    def translateEx(self, table, keyCol, keyVal, valCol):
+        # При наличии флага deleted проверяем, чтобы он был равен 0
+        if keyCol == 'id' and keyVal is None:
+            return None
+        self.checkdb()
+        table = self.forceTable(table)
+        if not isinstance(keyCol, CField):
+            keyCol = table[keyCol]
+        cond = [keyCol.eq(keyVal)]
+        if table.hasField('deleted'):
+            cond.append(table['deleted'].eq(0))
+        record = self.getRecordEx(table, valCol, cond)
+        if record:
+            return record.value(0)
+
+    def copyDepended(self, table, masterKeyCol, currentId, newId):
+        table = self.forceTable(table)
+        if not isinstance(masterKeyCol, CField):
+            masterKeyCol = table[masterKeyCol]
+        masterKeyColName = masterKeyCol.field.name()
+        result = []
+        stmt = self.selectStmt(table, '*', masterKeyCol.eq(currentId), order='id')
+        qquery = self.query(stmt)
+        while qquery.next():
+            record = qquery.record()
+            record.setNull('id')
+            record.setValue(masterKeyColName, toVariant(newId))
+            result.append(self.insertRecord(table, record))
+        return result
+
+    def getDescendants(self, table, groupCol, itemId):
+        table = self.forceTable(table)
+        group = groupCol if isinstance(groupCol, CField) else table[groupCol]
+
+        result = set([itemId])
+        parents = [itemId]
+
+        while parents:
+            cond = [group.inlist(parents)]
+            if table.hasField('deleted'):
+                cond.append(table['deleted'].eq(0))
+            children = set(self.getIdList(table, where=cond))
+            newChildren = children - result
+            result |= newChildren
+            parents = newChildren
+        return list(result)
+
+    def getTheseAndParents(self, table, groupCol, idList):
+        table = self.forceTable(table)
+        idField = table['id']
+        group = groupCol if isinstance(groupCol, CField) else table[groupCol]
+
+        result = set(idList)
+        children = idList
+
+        while children:
+            parents = set(
+                self.getDistinctIdList(table, idCol=groupCol, where=[idField.inlist(children), group.isNotNull()]))
+            newParents = parents - result
+            result |= newParents
+            children = newParents
+        return list(result)
+
+    def getCommonParent(self, table, idList, groupCol='group_id', idCol='id', searchTopCommonParent=False,
+                        maxLevels=32):
+        u"""
+        Поиск общего "родительского" элемента для указанного списка элементов
+        :param table: имя таблицы (или инстанс CTable), элементы которой надо обрабатывать
+        :param idList: список id элементов (или одно значение), для которых производится поиск "родительского" элемента
+        :param groupCol: имя поля, по которому осуществляется построение иерархии в базе данных
+        :param idCol: имя поля, на которое ссылается поле группировки и значения которого переданы в idList
+        :param searchTopCommonParent: флаг, указывающий необходимость искать не первый общей элемент-"родител", а самый
+        верхний, не имеющий "родителя"
+        :param maxLevels: максимальное количество обрабатываемых уровней иерархии
+        :return:
+        """
+        table = self.forceTable(table)
+
+        idCol = idCol if isinstance(idCol, CField) else table[idCol]
+
+        if not isinstance(idList, (list, set)):
+            idList = [idList]
+
+        idSet = set(idList)
+        while maxLevels > 0 and idSet:
+            oldIdSet = idSet
+            parentIdRecordList = QtGui.qApp.db.getRecordList(table, groupCol, idCol.inlist(idSet))
+            idSet = set([forceRef(record.value(0)) for record in parentIdRecordList])
+            # Если список уникальных родителей состоит из одного элемента
+            if len(idList) == 1:
+                # Если не надо искать верхнего родителя, то возвращаем найденного родителя
+                if not searchTopCommonParent:
+                    return idSet.pop()
+                # Иначе (если надо искать верхнего родителя), перебераем дальше до тех пор,
+                # пока не найдем один общий для всех элемент, но без родителя
+                elif None in idSet and len(oldIdSet) == 1:
+                    return oldIdSet.pop()
+
+        return None
+
+    def getTopParent(self, table, idList, groupCol='group_id', idCol='id', maxLevels=32):
+        u"""
+        Поиск общего корневого (топового, верхнего) "родительского" элемента для указанного списка элементов
+        :param table: имя таблицы (или инстанс CTable), элементы которой надо обрабатывать
+        :param idList: список id элементов (или одно значение), для которых производится поиск "родительского" элемента
+        :param groupCol: имя поля, по которому осуществляется построение иерархии в базе данных
+        :param idCol: имя поля, на которое ссылается поле группировки и значения которого переданы в idList
+        :param maxLevels: максимальное количество обрабатываемых уровней иерархии
+        :return:
+        """
+        return self.getCommonParent(table=table,
+                                    idList=idList,
+                                    groupCol=groupCol,
+                                    idCol=idCol,
+                                    searchTopCommonParent=True,
+                                    maxLevels=maxLevels)
+
+    def getAllRelated(self, table, idList, groupCol, idCol='id', maxLevels=32):
+        u"""
+        Поиск всех записей таблицы, связанных c указанными (с учетом как прямых, так и косвенных связей)
+        :param table: имя таблицы (или инстанс CTable), элементы которой надо обрабатывать
+        :param idList: список id элементов (или одно значение), для которых производится поиск "родительского" элемента
+        :param groupCol: имя поля, по которому осуществляется построение иерархии в базе данных
+        :param idCol: имя поля, на которое ссылается поле группировки и значения которого переданы в idList
+        :param maxLevels: максимальное количество обрабатываемых уровней иерархии
+        :return:
+        """
+        topParentId = self.getTopParent(table=table,
+                                        idList=idList,
+                                        groupCol=groupCol,
+                                        idCol=idCol,
+                                        maxLevels=maxLevels)
+        if not topParentId:
+            return idList if isinstance(idList, (list, set, tuple)) else [idList]
+
+        return self.getDescendants(table, groupCol, topParentId)

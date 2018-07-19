@@ -6,6 +6,7 @@ from PyQt4.QtCore import QVariant
 
 from DB.Field import CField
 
+
 # TODO: soltanoff: docstrings
 
 def undotLikeMask(val):
@@ -13,6 +14,29 @@ def undotLikeMask(val):
     if val.endswith('...'):
         val = val[:-3] + '%'
     return val.replace('...', '%').replace('%%', '%')
+
+
+def addCondLike(cond, field, val):
+    """
+    Добавит в условие cond sql LIKE выражение по val
+    field LIKE val
+    :param cond: список условий куда будет записываться новое условие
+    :param field: CField поле таблицы в котором производится поиск вхождения
+    :param val: выражение по которому производится поиск вхождения
+    многоточие '...' в конце строки заменится на %
+    """
+    if val.strip(' .'):
+        if val.find('...') != -1:
+            cond.append(field.like(val.strip()))
+        else:
+            cond.append(field.eq(val.strip()))
+
+
+def addDateInRange(cond, field, begDate, endDate):
+    if begDate and not begDate.isNull():
+        cond.append(field.ge(begDate))
+    if endDate and not endDate.isNull():
+        cond.append(field.lt(endDate.addDays(1)))
 
 
 def decorateString(s):

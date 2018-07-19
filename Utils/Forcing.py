@@ -201,6 +201,73 @@ def pyDateTime(dateTime):
     if dateTime and dateTime.isValid():
         if isinstance(dateTime, QDate):
             dateTime = QDateTime(dateTime)
-        return dateTime.toPyDateTime()
+
+
+def getFirstLexeme(sourceString):
+    u"""
+    Получение первой лексемы, т.е. группы однотипных символов (либо только числа, либо только не числа)
+    :param sourceString: исходная строка для поиска
+    :return: (lexeme, isDigit, stumpString)
+    """
+    isDigit = False
+    lexeme = u''
+    if sourceString:
+        isDigit = sourceString[0].isdigit()
+    for symbol in sourceString:
+        # если тип очередного символа строки отличается от типа первого символа
+        if symbol.isdigit() ^ isDigit:
+            break  # прервать формирование токена
+        lexeme += symbol
+    return lexeme, isDigit, sourceString[len(lexeme):]
+
+
+def naturalStringCompare(leftString, rightString):
+    u"""
+    Сравнивает строки путем естественного сравнения ('text1' < 'text2' < 'text11'),
+    вместо лексографического ('text1' < 'text11' < 'text2'), выполняемого стандартными методами сранения.
+    :param leftString: левый аргумент сравнения в виде строки (basestring или QString)
+    :param rightString: правый аргумент сравнения в виде строки (basestring или QString)
+    :return: отрицательное число, если leftString < rightString,
+             ноль, если leftString = rightString,
+             положительное, если leftString > rightString
+    """
+    leftString, rightString = forceString(leftString), forceString(rightString)
+
+    if leftString == rightString:
+        return 0
+
+    while True:
+        leftLexeme, leftIsDigit, leftString = getFirstLexeme(leftString)
+        rightLexeme, rightIsDigit, rightString = getFirstLexeme(rightString)
+
+        if leftIsDigit != rightIsDigit or not (leftLexeme and rightLexeme):
+            return cmp(leftLexeme, rightLexeme)
+
+        # сравниваем блоки, как числа, если они состоят из чисел, иначе, как строки
+        partCompareResult = cmp(forceInt(leftLexeme), forceInt(rightLexeme)) \
+            if leftIsDigit \
+            else cmp(leftLexeme, rightLexeme)
+
+        # если лексемы не равны, то считаем, что нашли результат, иначе пляшем дальше
+        if partCompareResult:
+            return partCompareResult
+
+        return datetime.datetime.now()
     else:
         return datetime.datetime(datetime.MINYEAR, 1, 1)
+
+
+def forcePyType(val):
+    t = val.type()
+    if t == QVariant.Bool:
+        return val.toBool()
+    elif t == QVariant.Date:
+        return val.toDate()
+    elif t == QVariant.DateTime:
+        return val.toDateTime()
+    elif t == QVariant.Double:
+        return val.toDouble()[0]
+    elif t == QVariant.Int:
+        return val.toInt()[0]
+    else:
+        return unicode(val.toString())

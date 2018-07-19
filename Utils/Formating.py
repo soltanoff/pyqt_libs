@@ -1,4 +1,5 @@
 # -*- coding: utf-8 -*-
+import re
 from PyQt4.QtCore import *
 
 from Utils.Forcing import forceString, forceStringEx, forceInt
@@ -21,6 +22,10 @@ def nameCase(text):
             up = True
             result += symbol
     return result
+
+
+def isNameValid(name):
+    return not re.search(r'''[0-9a-zA-Z`~!@#$%^&*_=+\\|{}[\];:"<>?/().,]''', forceStringEx(name))
 
 
 def formatDate(val, toString=True):
@@ -106,3 +111,33 @@ def formatSNILS(SNILS):
         return s[0:3] + '-' + s[3:6] + '-' + s[6:9] + ' ' + s[9:11]
     else:
         return u''
+
+
+# FIXME: move to other file!
+class ComparableMixin(object):
+    def _compare_to(self, other):
+        raise NotImplementedError(u'_compare_to() must be implemented by subclass')
+
+    def __eq__(self, other):
+        keys = self._compare_to(other)
+        return keys[0] == keys[1] if keys else NotImplemented
+
+    def __ne__(self, other):
+        return not self == other
+
+    def __lt__(self, other):
+        keys = self._compare_to(other)
+        return keys[0] < keys[1] if keys else NotImplemented
+
+    def __le__(self, other):
+        keys = self._compare_to(other)
+        return keys[0] <= keys[1] if keys else NotImplemented
+
+    def __gt__(self, other):
+        keys = self._compare_to(other)
+        return keys[0] > keys[1] if keys else NotImplemented
+
+    def __ge__(self, other):
+        keys = self._compare_to(other)
+        return keys[0] >= keys[1] if keys else NotImplemented
+   
