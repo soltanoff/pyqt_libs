@@ -1,6 +1,7 @@
 # -*- coding: utf-8 -*-
 from PyQt4 import QtGui
 from PyQt4.QtCore import Qt
+from PyQt4.QtGui import QTableWidgetItem, QAbstractItemView
 
 from EditableTable.InDocTableModel.LocItemDelegate import CLocItemDelegate
 
