@@ -52,3 +52,36 @@ class CInDocTableView(QtGui.QTableView):
             QtGui.QAbstractItemView.DoubleClicked
         )
         self.setFocusPolicy(Qt.StrongFocus)
+
+    def dropEvent(self, event):
+        if event.source() == self \
+                and (event.dropAction() == Qt.MoveAction or self.dragDropMode() == QAbstractItemView.InternalMove):
+            success, row, col, topIndex = self.dropOn(event)
+            if success:
+                selRows = self.getSelectedRowsFast()
+                top = selRows[0]
+                dropRow = row
+                if dropRow == -1:
+                    dropRow = self.rowCount()
+                offset = dropRow - top
+
+                for i, row in enumerate(selRows):
+                    r = row + offset
+                    if r > self.rowCount() or r < 0:
+                        r = 0
+                    self.insertRow(r)
+
+                selRows = self.getSelectedRowsFast()
+                top = selRows[0]
+                offset = dropRow - top
+                for i, row in enumerate(selRows):
+                    r = row + offset
+                    if r > self.rowCount() or r < 0:
+                        r = 0
+
+                    for j in range(self.columnCount()):
+                        source = QTableWidgetItem(self.item(row, j))
+                        self.setItem(r, j, source)
+                event.accept()
+        else:
+            QtGui.QTableView.dropEvent(event)
