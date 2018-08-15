@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 from PyQt4 import QtGui
-from PyQt4.QtCore import Qt
+from PyQt4.QtCore import Qt, QModelIndex
 from PyQt4.QtGui import QTableWidgetItem, QAbstractItemView
 
 from EditableTable.InDocTableModel.LocItemDelegate import CLocItemDelegate
@@ -86,3 +86,70 @@ class CInDocTableView(QtGui.QTableView):
                 event.accept()
         else:
             QtGui.QTableView.dropEvent(event)
+
+    def getSelectedRowsFast(self):
+        selRows = []
+        for item in self.selectedItems():
+            if item.row() not in selRows:
+                selRows.append(item.row())
+        return selRows
+
+    def droppingOnItself(self, event, index):
+        dropAction = event.dropAction()
+
+        if self.dragDropMode() == QAbstractItemView.InternalMove:
+            dropAction = Qt.MoveAction
+
+        if event.source() == self and event.possibleActions() & Qt.MoveAction and dropAction == Qt.MoveAction:
+            selectedIndexes = self.selectedIndexes()
+            child = index
+            while child.isValid() and child != self.rootIndex():
+                if child in selectedIndexes:
+                    return True
+                child = child.parent()
+
+        return False
+
+    def dropOn(self, event):
+        if event.isAccepted():
+            return False, None, None, None
+
+        index = QModelIndex()
+        row = -1
+        col = -1
+
+        if self.viewport().rect().contains(event.pos()):
+            index = self.indexAt(event.pos())
+            if not index.isValid() or not self.visualRect(index).contains(event.pos()):
+                index = self.rootIndex()
+
+        if self.model().supportedDropActions() & event.dropAction():
+            if index != self.rootIndex():
+                dropIndicatorPosition = self.position(event.pos(), self.visualRect(index), index)
+                if dropIndicatorPosition == QAbstractItemView.AboveItem:
+                    row = index.row()
+                    col = index.column()
+                elif dropIndicatorPosition == QAbstractItemView.BelowItem:
+                    row = index.row() + 1
+                    col = index.column()
+                else:
+                    row = index.row()
+                    col = index.column()
+
+            if not self.droppingOnItself(event, index):
+                return True, row, col, index
+
+        return False, None, None, None
+
+    def position(self, pos, rect, index):
+        r = QAbstractItemView.OnViewport
+        margin = 2
+        if pos.y() - rect.top() < margin:
+            r = QAbstractItemView.AboveItem
+        elif rect.bottom() - pos.y() < margin:
+            r = QAbstractItemView.BelowItem
+        elif rect.contains(pos, True):
+            r = QAbstractItemView.OnItem
+        if r == QAbstractItemView.OnItem and not (self.model().flags(index) & Qt.ItemIsDropEnabled):
+            r = QAbstractItemView.AboveItem if pos.y() < rect.center().y() else QAbstractItemView.BelowItem
+        return r
