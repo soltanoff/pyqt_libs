@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-from PyQt4 import QtGui
+from PyQt4 import QtGui, QtCore
 from PyQt4.QtCore import Qt, QModelIndex
 from PyQt4.QtGui import QTableWidgetItem, QAbstractItemView
 
@@ -153,3 +153,12 @@ class CInDocTableView(QtGui.QTableView):
         if r == QAbstractItemView.OnItem and not (self.model().flags(index) & Qt.ItemIsDropEnabled):
             r = QAbstractItemView.AboveItem if pos.y() < rect.center().y() else QAbstractItemView.BelowItem
         return r
+
+    @QtCore.pyqtSlot(int)
+    def enableSorting(self, logicalIdx):
+        if not self.isSortingEnabled() and logicalIdx in xrange(self.model().columnCount()):
+            self.setSortingEnabled(True)
+
+        # TODO: soltanoff: catch CInDocTableModel in future
+        # if isinstance(model, CInDocTableModel) and model.cols()[logicalIdx].sortable():
+        #     self.setSortingEnabled(True)
