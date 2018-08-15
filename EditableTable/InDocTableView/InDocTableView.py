@@ -9,8 +9,8 @@ from EditableTable.InDocTableModel.LocItemDelegate import CLocItemDelegate
 class CInDocTableView(QtGui.QTableView):
     __pyqtSignals__ = ('editInProgress(bool)',
                        )
-    MAX_COLS_SIZE = 350
-    MIN_COLS_SIZE = 72
+    MAX_COLS_SIZE = 400
+    MIN_COLS_SIZE = 40
 
     def __init__(self, parent):
         QtGui.QTableView.__init__(self, parent)
