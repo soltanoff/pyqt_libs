@@ -1,6 +1,22 @@
 # -*- coding: utf-8 -*-
 
 
+class CEnumMeta(type):
+    nameMap = {}
+
+    def getName(cls, item):
+        return cls.nameMap.get(item, u'')
+
+    def __getitem__(self, item):
+        return self.getName(item)
+
+    def __len__(self):
+        return len(self.nameMap)
+
+    def __iter__(self):
+        return iter(self.nameMap.itervalues())
+
+
 class CEnum(object):
     nameMap = {}
 
