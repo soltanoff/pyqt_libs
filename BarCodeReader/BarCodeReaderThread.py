@@ -26,8 +26,8 @@ class CBarCodeReaderThread(QtCore.QThread):
         self.barCodeReader.close = True
         try:
             QtGui.qApp.barcodeSerialPort.close()
-        except:
-            pass
+        except Exception as e:
+            print('[CBarCodeReaderThread]: %s' % e)
 
     def setFunc(self, mode):
         self.mode = mode
